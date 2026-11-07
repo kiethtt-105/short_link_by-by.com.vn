@@ -46,7 +46,16 @@ h2{font-size:18px;margin:0 0 10px}
 .admin input[type=checkbox]{height:auto;accent-color:var(--c)}
 select{appearance:none;padding-right:34px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%238b92ab' stroke-width='2'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 option{background:var(--s2);color:var(--ink)}
-@supports (appearance:base-select){select,::picker(select){appearance:base-select}select::picker-icon{display:none}::picker(select){background:var(--s2);border:1px solid var(--line);border-radius:var(--r);padding:4px;margin-top:4px;box-shadow:0 16px 40px rgba(0,0,0,.6)}select option{padding:8px 10px;border-radius:8px}select option:hover{background:rgba(91,139,255,.1)}select option:checked{color:var(--c)}select option::checkmark{display:none}}
+@supports (appearance:base-select){
+select,::picker(select){appearance:base-select}
+select::picker-icon{display:none}
+::picker(select){background:var(--s2);border:1px solid rgba(91,139,255,.35);border-radius:var(--r);padding:4px;margin-block:6px;font-size:14px;min-inline-size:anchor-size(inline);max-block-size:min(260px,45vh);box-shadow:0 16px 40px rgba(0,0,0,.6);position-try-fallbacks:flip-block}
+select option{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:14px;color:var(--ink);cursor:pointer;transition:background .15s}
+select option:hover,select option:focus-visible{background:rgba(91,139,255,.14)}
+select option:checked{color:var(--c);font-weight:600}
+select option::checkmark{content:"✓";margin-left:auto;color:var(--c);font-size:13px}
+select:open{border-color:var(--c)}
+}
 
 /* Trang chủ */
 .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center;padding-top:5vh;padding-bottom:44px}
