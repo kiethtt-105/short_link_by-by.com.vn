@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rút gọn link và tạo mã QR</title>
 <meta name="description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
-<meta name="theme-color" content="#07080f">
+<meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Rút gọn link và tạo mã QR">
 <meta property="og:description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
@@ -20,7 +21,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=9">
+<link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body class="home">
 <header class="top">
@@ -33,7 +34,7 @@
       <h1>Rút gọn link, kèm mã QR</h1>
       <p class="lead">Dán link dài để nhận link ngắn và mã QR. Lượt bấm link và lượt quét QR được đếm riêng.</p>
       <form id="f" novalidate>
-        <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn">
+        <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" enterkeyhint="go" spellcheck="false" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn">
         <button id="paste" class="linkbtn" type="button" hidden>Dán</button>
         <button id="go" class="go">Rút gọn</button>
       </form>
@@ -197,15 +198,18 @@ let view = adminSess() ? "all" : "mine";
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
 const ago = (t) => { if (!t) return ""; const s = (Date.now() - t) / 1000;
   return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : Math.floor(s / 86400) + " ngày trước"; };
+const flags = (it) => [it.protected && "có mật khẩu",
+  it.expires_at && (new Date(it.expires_at) < Date.now() ? "đã hết hạn" : "hết hạn " + new Date(it.expires_at).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })),
+  it.max_clicks && "tối đa " + it.max_clicks + " lượt"].filter(Boolean);
 const undoable = (msg, bk) => toast(msg, false, { label: "Hoàn tác", fn: () => { save(bk); renderHist(); } });
 function histItem(it, note) {
-  const stat = h("small", { textContent: note || [host(it.url), ago(it.t)].filter(Boolean).join(" · "), title: it.url });
+  const stat = h("small", { textContent: note || [host(it.url), ago(it.t), ...flags(it)].filter(Boolean).join(" · "), title: it.url });
   const btn = h("button", { className: "linkbtn", type: "button", textContent: "Xem số liệu" });
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = "Đang tải...";
     try {
       const d = await call("/api/stats?code=" + encodeURIComponent(it.code));
-      stat.textContent = `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR · ${host(it.url)}`;
+      stat.textContent = `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR · ${[host(it.url), ...flags(it)].join(" · ")}`;
       btn.textContent = "Làm mới";
     } catch (x) { stat.textContent = x.message; btn.textContent = "Thử lại"; }
     btn.disabled = false;
@@ -235,7 +239,7 @@ async function renderAll() {
         `${l.disabled ? "[Đã khoá] " : ""}${l.clicks} lượt truy cập, ${l.scans} từ QR · ${l.url}`));
     }
   } catch (x) { // phiên đã bị thay (máy khác đăng nhập) hoặc lỗi mạng: quay về danh sách của bạn
-    view = "mine"; $("#seg").hidden = true; renderMine(); toast(x.message, true);
+    view = "mine"; document.querySelectorAll("#seg button").forEach((x) => x.classList.toggle("on", x.dataset.v === "mine")); renderMine(); toast(x.message, true);
   }
 }
 const renderHist = () => (view === "all" ? renderAll() : renderMine());
@@ -264,7 +268,7 @@ $("#f").addEventListener("submit", async (e) => {
     return fail("Tên riêng gồm 3-32 ký tự chữ, số, _ hoặc -.", $("#alias"));
   }
   const maxc = $("#maxc").value.trim(), pw = $("#pw").value;
-  if (maxc && !/^[1-9]\d{0,7}$/.test(maxc)) { $("#maxc").closest("details").open = true; return fail("Giới hạn lượt phải là số nguyên từ 1 đến 10.000.000.", $("#maxc")); }
+  if (maxc && !(/^[1-9]\d{0,7}$/.test(maxc) && +maxc <= 10000000)) { $("#maxc").closest("details").open = true; return fail("Giới hạn lượt phải là số nguyên từ 1 đến 10.000.000.", $("#maxc")); }
   if (pw && (pw.length < 4 || pw.length > 64)) { $("#pw").closest("details").open = true; return fail("Mật khẩu link gồm 4-64 ký tự.", $("#pw")); }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
   go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
@@ -330,12 +334,13 @@ let tsToken = "", tsWidget = null;
 const tsReset = () => { tsToken = ""; try { if (tsWidget !== null) turnstile.reset(tsWidget); } catch {} };
 if (SITE_KEY) {
   window.onTurnstileLoad = () => {
-    tsWidget = turnstile.render("#cf", { sitekey: SITE_KEY, theme: "dark", appearance: "interaction-only",
+    tsWidget = turnstile.render("#cf", { sitekey: SITE_KEY, theme: "auto", appearance: "interaction-only",
       callback: (t) => (tsToken = t), "expired-callback": () => (tsToken = ""), "error-callback": () => (tsToken = "") });
   };
   document.head.append(h("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit", async: true, defer: true }));
 }
 renderHist();
+if (!matchMedia("(pointer:coarse)").matches && !$("#url").value) $("#url").focus();
 document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 </script>
 <!-- Vercel Web Analytics + Speed Insights (bật ở dashboard: Analytics, Speed Insights) -->
