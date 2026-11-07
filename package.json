@@ -5,7 +5,9 @@
   "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "^1.5.0",
+    "@vercel/speed-insights": "^2.1.0",
     "qrcode": "^1.5.4"
   }
 }

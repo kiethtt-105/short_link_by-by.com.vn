@@ -8,39 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;800&display=swap" rel="stylesheet">
-<style>
-:root{--ink:#0e1a2b;--paper:#f3f6fb;--card:#fff;--line:#d9e0ec;--blue:#2b59ff;--ok:#0f9d6e;--bad:#d92d20;--muted:#5b6b82;color-scheme:light dark}
-@media(prefers-color-scheme:dark){:root{--ink:#e8eefc;--paper:#0b1220;--card:#121b2e;--line:#2a3a5c;--blue:#7b97ff;--ok:#34d399;--bad:#f87171;--muted:#93a3bf}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
-main{max-width:1040px;margin:0 auto;padding:40px 20px 64px}
-h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
-input,select,textarea,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
-button{cursor:pointer}
-.primary{background:var(--blue);color:#fff;border:0}
-:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
-.muted{color:var(--muted)} .err{color:var(--bad)} .ok{color:var(--ok)}
-[hidden]{display:none!important}
-nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:20px 0}
-nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:10px 16px}
-nav button[aria-selected=true]{border-color:var(--blue);font-weight:500}
-.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-table{border-collapse:collapse;width:100%;min-width:640px}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--muted);font-weight:500}
-td.u{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-td a{color:var(--blue)}
-.del{color:var(--bad)}
-.field{margin-bottom:16px} .field label{font-weight:500;display:block;margin-bottom:4px}
-.field .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-input[type=color]{padding:2px;width:70px;height:40px} input[type=number],select{width:150px} textarea{width:100%;min-height:70px}
-.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line)}
-#login{display:flex;gap:8px;max-width:420px;margin-top:20px}
-#login input{flex:1}
-</style>
+<link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="admin">
 <main>
   <h1>Quản trị</h1>
   <p class="muted">Xem link, nhật ký thao tác và chỉnh cài đặt. Cần mật khẩu ADMIN_KEY.</p>
@@ -59,7 +29,7 @@ input[type=color]{padding:2px;width:70px;height:40px} input[type=number],select{
 
     <section id="links">
       <div class="bar"><input id="q" placeholder="Tìm theo mã hoặc link gốc" aria-label="Tìm link"><button id="qgo">Tìm</button><span id="sum" class="muted"></span></div>
-      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th>Bấm</th><th>Quét QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
+      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th>Lượt truy cập</th><th>Trong đó từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
     </section>
 
     <section id="logs" hidden>
@@ -89,7 +59,7 @@ const empty = (tb, n, text) => tb.replaceChildren(h("tr", {}, h("td", { colSpan:
 /* Link */
 async function loadLinks() {
   const d = await api("/api/links?q=" + encodeURIComponent($("#q").value));
-  $("#sum").textContent = `${d.total} link, ${d.clicks} lượt bấm, ${d.scans} lượt quét QR`;
+  $("#sum").textContent = `${d.total} link, ${d.clicks} lượt truy cập (${d.scans} từ QR)`;
   const tb = $("#lbody");
   if (!d.links.length) return empty(tb, 6, "Không có link nào.");
   tb.replaceChildren(...d.links.map((l) => {
@@ -106,7 +76,7 @@ $("#qgo").onclick = loadLinks;
 $("#q").addEventListener("keydown", (e) => e.key === "Enter" && loadLinks());
 
 /* Nhật ký */
-const ACTIONS = ["", "create", "click", "scan", "qr_view", "not_found", "blocked_domain", "rate_limited", "create_failed", "link_delete", "settings_update", "admin_auth_failed"];
+const ACTIONS = ["", "create", "click", "scan", "qr_view", "stats_view", "not_found", "blocked_domain", "rate_limited", "create_failed", "auth_failed", "qr_failed", "link_delete", "settings_update", "admin_auth_failed"];
 $("#act").append(...ACTIONS.map((a) => h("option", { value: a, textContent: a || "Tất cả thao tác" })));
 async function loadLogs() {
   const a = $("#act").value, d = await api("/api/logs?limit=100" + (a ? "&action=" + a : ""));

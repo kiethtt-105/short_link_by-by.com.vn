@@ -1,6 +1,20 @@
 {
   "rewrites": [
+    { "source": "/api/:op(shorten|stats|qr|links|logs|settings)", "destination": "/api/index?op=:op" },
     { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/:code([A-Za-z0-9_-]{3,32})", "destination": "/api/r?code=:code" }
+    { "source": "/:code([A-Za-z0-9_-]{3,32})", "destination": "/api/index?op=r&code=:code" }
+  ],
+  "headers": [
+    {
+      "source": "/style.css",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, s-maxage=86400, stale-while-revalidate=86400" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    }
   ]
 }
