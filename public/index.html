@@ -10,9 +10,14 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body class="home">
+<header class="top">
+  <a class="brand" href="/">by.com.vn</a>
+  <nav class="links"><a href="#features">Tính năng</a><a href="#recent">Link gần đây</a></nav>
+</header>
 <main>
-  <div class="grid">
+  <div class="hero">
     <section>
+      <span class="chip">Rút gọn link miễn phí</span>
       <h1>Dán link dài. Lấy link ngắn và mã QR.</h1>
       <p class="lead">Không cần đăng ký. Mỗi link có sẵn mã QR, kèm số lượt truy cập và lượt quét QR để theo dõi.</p>
       <form id="f">
@@ -28,9 +33,17 @@
       <p class="hint">Mã QR và link ngắn của bạn sẽ hiện ở đây.</p>
     </section>
   </div>
-  <h2>Link gần đây trên máy này</h2>
-  <ul id="hist"></ul>
+  <div id="features" class="features">
+    <div class="card"><i>QR</i><h3>Mã QR có sẵn</h3><p>Tải về dạng SVG hoặc PNG để in lên tờ rơi, banner.</p></div>
+    <div class="card"><i>↗</i><h3>Theo dõi lượt truy cập</h3><p>Xem số lượt bấm và lượt quét QR của từng link.</p></div>
+    <div class="card"><i>Aa</i><h3>Tên riêng dễ nhớ</h3><p>Tự đặt đuôi link như /khuyen-mai thay vì mã ngẫu nhiên.</p></div>
+  </div>
+  <section id="recent" class="recent">
+    <h2>Link gần đây trên máy này</h2>
+    <ul id="hist"></ul>
+  </section>
 </main>
+<footer class="foot">© by.com.vn</footer>
 <script>
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
