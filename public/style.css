@@ -215,3 +215,22 @@ dialog::backdrop{background:rgba(20,28,60,.45)}
 .bm{margin:0 0 10px}
 .bm a{display:inline-block;padding:2px 10px;border:1px dashed var(--c);border-radius:99px;cursor:grab}
 @media(pointer:coarse){.bm{display:none}}
+
+/* v13: đồng bộ, sparkline, thẻ QR, trang điều khoản */
+.spark{width:64px;height:22px;flex:none;fill:none;stroke:var(--c);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:420px){.spark{display:none}}
+.fl{margin:0 0 10px}.fl a{color:var(--mute)}.fl a:hover{color:var(--c)}
+.fld{width:100%;height:42px;padding:0 12px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);outline:0;transition:border-color .2s,box-shadow .2s}
+.fld:focus{border-color:var(--c);box-shadow:0 0 0 3px rgba(91,139,255,.15)}
+.qrbig h2{margin:0 0 10px}
+.qrbig .rc{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;margin:4px 0 12px}
+.qrbig .sep{border:0;border-top:1px solid var(--line);margin:18px 0 14px}
+.cardform{display:grid;gap:8px;margin-bottom:12px;text-align:left}
+.cardcv{display:block;width:min(100%,300px);height:auto;margin:0 auto 14px;border-radius:8px;box-shadow:0 0 0 1px var(--line);background:#fff}
+.doc main{max-width:760px;margin:0 auto;padding:8px 20px 32px}
+.doc h1{font-size:clamp(26px,4vw,36px)}
+.doc h2{margin:30px 0 8px}
+.doc ul{padding-left:20px;margin:8px 0}
+.doc li{margin:4px 0}
+.doc form{display:grid;gap:10px;margin-top:12px;padding:18px;background:var(--s1);border:1px solid var(--line);border-radius:var(--R)}
+.doc .muted{margin:0 0 8px}

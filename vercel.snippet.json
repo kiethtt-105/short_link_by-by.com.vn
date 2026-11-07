@@ -1,0 +1,24 @@
+{
+  "_ghi_chu": "Gộp vào vercel.json hiện có (xoá dòng _ghi_chu). Rewrite /health PHẢI nằm TRƯỚC rewrite bắt mọi /:code. File tĩnh như /terms.html được phục vụ trước rewrite nên không cần thêm.",
+  "rewrites": [
+    { "source": "/health", "destination": "/api/index?op=health" }
+  ],
+  "crons": [
+    { "path": "/api/index?op=watch", "schedule": "0 2 * * *" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        }
+      ]
+    }
+  ]
+}

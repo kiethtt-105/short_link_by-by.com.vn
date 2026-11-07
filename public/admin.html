@@ -10,7 +10,7 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=12">
+<link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body class="admin">
 <header class="top">
@@ -45,6 +45,8 @@
     </section>
     <section id="settings" hidden>
       <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
+      <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button>
+        <span class="muted">Telegram cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
     </section>
   </div>
 </main>
@@ -130,6 +132,7 @@ async function loadLinks() {
     const chip = (c, t) => h("span", { className: "chip " + c, textContent: t });
     const chips = [];
     if (l.protected) chips.push(chip("w", "Mật khẩu"));
+    if (l.dead) chips.push(chip("r", "Link đích lỗi" + (l.last_status ? " (" + l.last_status + ")" : "")));
     if (l.expires_at) { const gone = new Date(l.expires_at) < Date.now(); chips.push(chip(gone ? "r" : "c", gone ? "Đã hết hạn" : "Hết hạn " + full(l.expires_at))); }
     if (l.max_clicks) { const left = l.max_clicks - l.clicks; chips.push(chip(left <= 0 ? "r" : "c", left <= 0 ? "Hết lượt" : `Còn ${num(left)} lượt`)); }
     const del = h("button", { className: "b sm danger", textContent: "Xoá" });
@@ -177,7 +180,8 @@ const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lư�
   not_found: "Link không tồn tại", blocked_domain: "Tên miền bị chặn", rate_limited: "Vượt giới hạn tạo link",
   create_failed: "Tạo link thất bại", auth_failed: "API key không hợp lệ", qr_failed: "Tạo mã QR thất bại",
   link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai",
-  link_disable: "Khoá link", link_enable: "Mở khoá link", link_update: "Sửa link", expired_click: "Bấm link hết hạn", wrong_password: "Nhập sai mật khẩu link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)" };
+  link_disable: "Khoá link", link_enable: "Mở khoá link", link_update: "Sửa link", expired_click: "Bấm link hết hạn", wrong_password: "Nhập sai mật khẩu link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)",
+  report: "Báo cáo link", sync_create: "Tạo mã khôi phục", sync_restore: "Khôi phục lịch sử", watch: "Kiểm tra định kỳ", admin_login: "Đăng nhập quản trị" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
 let logRows = [];
 function renderLogs() {
@@ -242,6 +246,17 @@ $("#sf").addEventListener("submit", async (e) => {
   try { renderSettings((await api("/api/settings", { method: "PUT", body: JSON.stringify(patch) })).settings); msg.className = "ok"; msg.textContent = "Đã lưu"; }
   catch (x) { msg.className = "err"; msg.textContent = x.message; }
 });
+
+$("#tgtest").onclick = async () => {
+  try { const d = await api("/api/index?op=watch&test=1"); toast(d.sent ? "Đã gửi tin thử" : "Chưa gửi được: kiểm tra TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID", !d.sent); }
+  catch (e) { toast(e.message, true); }
+};
+$("#chk").onclick = async () => {
+  const b = $("#chk"); b.disabled = true;
+  try { const d = await api("/api/index?op=watch"); toast(`Đã kiểm tra ${d.checked} link, ${d.dead} link đích lỗi` + (d.remaining_hint ? ". Bấm lại để kiểm tra tiếp" : "")); }
+  catch (e) { toast(e.message, true); }
+  b.disabled = false;
+};
 
 /* Tab (nhớ theo #hash), đăng nhập */
 const loaders = { links: loadLinks, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };

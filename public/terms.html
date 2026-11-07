@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Điều khoản và Chính sách</title>
+<meta name="description" content="Điều khoản sử dụng, chính sách quyền riêng tư và cách báo cáo link vi phạm.">
+<meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/style.css?v=13">
+</head>
+<body class="home doc">
+<header class="top">
+  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28"><span class="host">Rút gọn link</span></a>
+  <div class="links"><a class="pill" href="/">Trang chủ</a></div>
+</header>
+<main>
+  <h1>Điều khoản và Chính sách</h1>
+  <p class="muted">Cập nhật lần cuối: 07/11/2026</p>
+
+  <h2 id="dieu-khoan">1. Điều khoản sử dụng</h2>
+  <p>Dịch vụ giúp bạn rút gọn link và tạo mã QR. Khi sử dụng, bạn đồng ý với các điều khoản dưới đây. Dịch vụ được cung cấp "như hiện có", không cam kết hoạt động liên tục, và chúng tôi không chịu trách nhiệm về nội dung của các trang mà link ngắn trỏ đến.</p>
+
+  <h2 id="cam">2. Nội dung bị cấm</h2>
+  <p>Không dùng dịch vụ để tạo link dẫn đến:</p>
+  <ul>
+    <li>Trang lừa đảo, giả mạo ngân hàng, tổ chức hoặc cá nhân để lấy thông tin đăng nhập, thanh toán.</li>
+    <li>Phần mềm độc hại, virus, mã khai thác lỗ hổng.</li>
+    <li>Nội dung bất hợp pháp, gồm nội dung xâm hại trẻ em, mua bán hàng cấm, cờ bạc trái phép.</li>
+    <li>Spam, quảng cáo hàng loạt, hoặc che giấu đích đến thật nhằm đánh lừa người mở link.</li>
+    <li>Nội dung vi phạm bản quyền, quấy rối hoặc xâm phạm đời tư người khác.</li>
+  </ul>
+  <p>Chúng tôi có thể kiểm tra link bằng danh sách chặn tên miền và dịch vụ phát hiện link độc hại, đồng thời được quyền khoá hoặc xoá bất kỳ link nào vi phạm mà không cần báo trước.</p>
+
+  <h2 id="bao-cao">3. Báo cáo link vi phạm</h2>
+  <p>Nếu bạn gặp link ngắn có dấu hiệu lừa đảo hoặc vi phạm, hãy gửi báo cáo bên dưới. Bạn có thể nhập mã link (ví dụ <b>abc12</b>) hoặc dán cả link ngắn.</p>
+  <form method="post" action="/api/index?op=report">
+    <input class="fld" name="code" required maxlength="120" placeholder="Mã hoặc link ngắn cần báo cáo" autocomplete="off" aria-label="Mã hoặc link ngắn cần báo cáo">
+    <select class="fld" name="reason" aria-label="Lý do">
+      <option value="phishing">Lừa đảo / giả mạo</option>
+      <option value="malware">Mã độc / virus</option>
+      <option value="illegal">Nội dung bị cấm</option>
+      <option value="spam">Spam</option>
+      <option value="other">Lý do khác</option>
+    </select>
+    <input class="fld" name="note" maxlength="300" placeholder="Ghi chú (không bắt buộc)" autocomplete="off" aria-label="Ghi chú">
+    <button class="b p">Gửi báo cáo</button>
+  </form>
+
+  <h2 id="xu-ly">4. Cách chúng tôi xử lý</h2>
+  <ul>
+    <li>Báo cáo được ghi lại và chuyển cho quản trị viên xem xét.</li>
+    <li>Link xác định là vi phạm sẽ bị khoá: người mở sẽ thấy thông báo link đã bị khoá và không được chuyển đến trang đích.</li>
+    <li>Nếu bạn cho rằng link của mình bị khoá nhầm, hãy liên hệ qua trang <a href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn</a> kèm mã link.</li>
+  </ul>
+
+  <h2 id="quyen-rieng-tu">5. Chính sách quyền riêng tư</h2>
+  <p>Chúng tôi thu thập tối thiểu những gì cần để vận hành, chống lạm dụng và thống kê:</p>
+  <ul>
+    <li><b>Khi bạn tạo link:</b> link đích, tên riêng (nếu có), địa chỉ IP, thời điểm tạo. Mật khẩu của link, nếu đặt, chỉ được lưu dưới dạng băm.</li>
+    <li><b>Khi ai đó bấm link hoặc quét QR:</b> địa chỉ IP, quốc gia và thành phố ước lượng, loại thiết bị, trình duyệt, hệ điều hành, trang giới thiệu (nếu có). Dữ liệu này hiện trong thống kê của link.</li>
+    <li><b>Nhật ký hệ thống</b> được tự động xoá sau một thời gian cấu hình bởi quản trị viên.</li>
+    <li><b>Lịch sử link</b> nằm trong trình duyệt của bạn. Nếu bạn bật "Đồng bộ", danh sách mã link của bạn được lưu trên máy chủ, gắn với một mã khôi phục ngẫu nhiên (máy chủ chỉ giữ bản băm của mã). Ai biết mã khôi phục đều xem được danh sách link, vì vậy hãy giữ kín.</li>
+    <li><b>Dịch vụ bên thứ ba:</b> Cloudflare Turnstile (chống spam khi tạo link), Vercel Analytics (thống kê truy cập trang), và có thể có Google Safe Browsing (kiểm tra link độc hại).</li>
+  </ul>
+  <p>Khi bạn dán link để lấy gợi ý tên riêng, máy chủ sẽ tải tiêu đề của trang đó. Máy chủ không truy cập địa chỉ mạng nội bộ.</p>
+</main>
+<footer class="foot">© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+<script>document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));</script>
+</body>
+</html>

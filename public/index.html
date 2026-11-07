@@ -18,7 +18,7 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=12">
+<link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body class="home">
 <header class="top">
@@ -66,20 +66,22 @@
   <section class="recent">
     <header><h2>Link gần đây</h2>
       <div id="seg" class="seg" hidden><button type="button" data-v="mine">Của bạn</button><button type="button" data-v="all">Toàn hệ thống</button></div>
+      <button id="sync" class="linkbtn" type="button">Đồng bộ</button>
       <button id="csv" class="linkbtn" type="button" hidden>Xuất CSV</button>
       <button id="clear" class="linkbtn" type="button" hidden>Xoá lịch sử</button></header>
     <ul id="hist"></ul>
   </section>
 </main>
 <footer class="foot">
-  <p class="bm">Dấu trang nhanh: kéo nút <a id="bm" href="#" draggable="true">Rút gọn trang này</a> lên thanh dấu trang.</p>© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+  <p class="bm">Dấu trang nhanh: kéo nút <a id="bm" href="#" draggable="true">Rút gọn trang này</a> lên thanh dấu trang.</p>
+  <p class="fl"><a href="/terms.html">Điều khoản</a> · <a href="/terms.html#quyen-rieng-tu">Chính sách</a> · <a href="/terms.html#bao-cao">Báo cáo link vi phạm</a></p>© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
 const KEY = "short_history";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
-const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 40))); } catch {} };
+const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 40))); } catch {} queueSync(); };
 
 function toast(msg, bad, act) {
   const t = $("#toast"); t.replaceChildren(msg);
@@ -125,20 +127,19 @@ function copyBtn(text) {
   return b;
 }
 // Màu QR do người dùng chọn, nhớ trong trình duyệt; gắn vào URL ảnh (?fg=&bg=)
-const QS = "qr_style", QDEF = { fg: "#000000", bg: "#ffffff" };
+const QS = "qr_style", QDEF = { fg: "#000000", bg: "#ffffff", shape: "square" };
 const qstyle = () => { try { return { ...QDEF, ...JSON.parse(localStorage.getItem(QS)) }; } catch { return { ...QDEF }; } };
-const styled = (d) => { const s = qstyle(); return { ...d, bg: s.bg, qr_url: d.qr_url + "&fg=" + s.fg.slice(1) + "&bg=" + s.bg.slice(1) }; };
+const styled = (d) => { const s = qstyle(); return { ...d, bg: s.bg, qr_url: d.qr_url + "&fg=" + s.fg.slice(1) + "&bg=" + s.bg.slice(1) + (s.shape !== "square" ? "&shape=" + s.shape : "") }; };
 const lum = (x) => { const c = [1, 3, 5].map((i) => parseInt(x.substr(i, 2), 16) / 255).map((v) => (v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
 const contrast = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
-const pngUrl = (d) => d.qr_url + "&format=png";
 async function copyQR(d) {
-  try { const b = await (await fetch(pngUrl(d))).blob();
+  try { const b = await qrBlob(d);
     await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]); return true; } catch { return false; }
 }
 // Chia sẻ ảnh QR kèm link (điện thoại); không hỗ trợ file thì chia sẻ riêng link
 async function shareQR(d) {
   try {
-    const b = await (await fetch(pngUrl(d))).blob(), f = new File([b], "qr.png", { type: "image/png" });
+    const b = await qrBlob(d), f = new File([b], "qr.png", { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [f] })) return await navigator.share({ files: [f], title: d.short_url, text: d.short_url });
   } catch (e) { if (e.name === "AbortError") return; }
   try { await navigator.share({ title: d.short_url, url: d.short_url }); } catch {}
@@ -173,7 +174,7 @@ function zoomQR(d) {
     h("p", { className: "short", textContent: d.short_url }),
     h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
-      h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" }),
+      pngBtn(d),
       h("button", { className: "btn", type: "button", textContent: "Đóng", onclick: () => dlg.close() })));
   dlg.showModal();
 }
@@ -188,14 +189,18 @@ function showResult(d0) {
     const n = { ...s, [key]: e.target.value }; store(n);
     if (contrast(n.fg, n.bg) < 3 || lum(n.fg) > lum(n.bg)) toast("Mã nên tối hơn nền và đủ tương phản, nếu không khó quét", true);
     showResult(d0); } }));
+  const SH = [["square", "Vuông"], ["dot", "Chấm tròn"], ["round", "Bo tròn"], ["smooth", "Góc bo"]];
+  const shapeRow = h("div", { className: "seg", role: "group", title: "Kiểu mã QR" }, ...SH.map(([v, t]) =>
+    h("button", { type: "button", className: s.shape === v ? "on" : "", textContent: t, onclick: () => { store({ ...s, shape: v }); showResult(d0); } })));
   const colorRow = h("div", { className: "row clrs" }, pick("fg", "Màu mã"), pick("bg", "Màu nền"),
     h("button", { className: "linkbtn", type: "button", textContent: "Mặc định", onclick: () => { store(null); showResult(d0); } }));
   p.replaceChildren(qb,
     h("a", { className: "short", href: d.short_url, target: "_blank", rel: "noopener", textContent: d.short_url }),
     h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
       h("button", { className: "btn ghost", type: "button", textContent: "Phóng to", onclick: () => zoomQR(d) }),
+      h("button", { className: "btn ghost", type: "button", textContent: "Thẻ in sẵn", onclick: () => cardDialog(d) }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
-      h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" })), colorRow);
+      pngBtn(d)), shapeRow, colorRow);
   if (matchMedia("(max-width:820px)").matches) p.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 // Đã đăng nhập /admin trên trình duyệt này thì hiện thêm link của toàn hệ thống (song song với link của bạn)
@@ -207,7 +212,7 @@ const ago = (t) => { if (!t) return ""; const s = (Date.now() - t) / 1000;
 const flags = (it) => [it.protected && "có mật khẩu",
   it.expires_at && (new Date(it.expires_at) < Date.now() ? "đã hết hạn" : "hết hạn " + new Date(it.expires_at).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })),
   it.max_clicks && "tối đa " + it.max_clicks + " lượt"].filter(Boolean);
-const undoable = (msg, bk) => toast(msg, false, { label: "Hoàn tác", fn: () => { save(bk); renderHist(); } });
+const undoable = (msg, bk) => toast(msg, false, { label: "Hoàn tác", fn: () => { bk.forEach((x) => pend.delete(x.code)); save(bk); renderHist(); } });
 function histItem(it, note) {
   const stat = h("small", { textContent: note || [host(it.url), ago(it.t), ...flags(it)].filter(Boolean).join(" · "), title: it.url });
   const btn = h("button", { className: "linkbtn", type: "button", textContent: "Xem số liệu" });
@@ -222,14 +227,16 @@ function histItem(it, note) {
   };
   const acts = h("span", { className: "acts" }, btn);
   if (!note) acts.append(h("button", { className: "linkbtn", type: "button", textContent: "Xoá", onclick: () => {
-    const bk = load(); save(bk.filter((x) => x.code !== it.code)); renderHist(); undoable("Đã xoá khỏi lịch sử", bk); } }));
-  return h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat, acts);
+    const bk = load(); save(bk.filter((x) => x.code !== it.code)); queueSync([it.code]); renderHist(); undoable("Đã xoá khỏi lịch sử", bk); } }));
+  const li = h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat, acts);
+  li.dataset.code = it.code; return li;
 }
 let shown = 8;
 function renderMine() {
   const ul = $("#hist"), items = load(); ul.replaceChildren(); $("#clear").hidden = $("#csv").hidden = !items.length;
   if (!items.length) return ul.append(h("li", { className: "empty", textContent: "Chưa có link nào. Link bạn tạo sẽ hiện ở đây." }));
   for (const it of items.slice(0, shown)) ul.append(histItem(it));
+  loadSparks(items.slice(0, shown).map((x) => x.code));
   if (items.length > shown) ul.append(h("li", { className: "more" }, h("button", { className: "linkbtn", type: "button",
     textContent: `Xem thêm (${items.length - shown})`, onclick: () => { shown += 8; renderMine(); } })));
 }
@@ -244,6 +251,7 @@ async function renderAll() {
       ul.append(histItem({ code: l.code, url: l.url, short_url: location.origin + "/" + l.code },
         `${l.disabled ? "[Đã khoá] " : ""}${l.clicks} lượt truy cập, ${l.scans} từ QR · ${l.url}`));
     }
+    loadSparks(d.links.map((l) => l.code));
   } catch (x) { // phiên đã bị thay (máy khác đăng nhập) hoặc lỗi mạng: quay về danh sách của bạn
     view = "mine"; document.querySelectorAll("#seg button").forEach((x) => x.classList.toggle("on", x.dataset.v === "mine")); renderMine(); toast(x.message, true);
   }
@@ -257,6 +265,170 @@ if (adminSess()) {
     b.onclick = () => { view = b.dataset.v; btns.forEach((x) => x.classList.toggle("on", x === b)); renderHist(); };
   });
 }
+/* ───── Đồng bộ lịch sử bằng mã khôi phục (không cần đăng nhập) ───── */
+const RCK = "short_recovery";
+const rcGet = () => { try { return localStorage.getItem(RCK) || ""; } catch { return ""; } };
+const rcSet = (v) => { try { v ? localStorage.setItem(RCK, v) : localStorage.removeItem(RCK); } catch {} };
+const jpost = (path, body) => call(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+let pend = new Set(), syncTimer; // pend: link vừa xoá, cần báo máy chủ gỡ khỏi mã
+function queueSync(removed = []) {
+  removed.forEach((c) => pend.add(c));
+  const r = rcGet(); if (!r) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    const remove = [...pend];
+    try { await jpost("/api/index?op=sync", { action: "save", recovery: r, codes: load().map((x) => x.code), remove }); remove.forEach((c) => pend.delete(c)); } catch {}
+  }, 1500);
+}
+function bigDialog(id) {
+  let dlg = $("#" + id);
+  if (!dlg) { dlg = h("dialog", { id, className: "qrbig" }); dlg.addEventListener("click", (e) => e.target === dlg && dlg.close()); document.body.append(dlg); }
+  return dlg;
+}
+function syncDialog() {
+  const dlg = bigDialog("syncdlg"), msg = h("p", { className: "ac" });
+  const say = (t, bad) => { msg.className = "ac " + (bad ? "err" : "ok"); msg.textContent = t; };
+  const draw = () => {
+    const r = rcGet(), top = [h("h2", { textContent: "Đồng bộ lịch sử" })];
+    if (r) top.push(
+      h("p", { className: "cap", textContent: "Mã khôi phục của bạn. Nhập mã này trên máy khác để lấy lại danh sách link." }),
+      h("p", { className: "short rc", textContent: r }),
+      h("div", { className: "row" }, copyBtn(r), h("button", { className: "btn ghost", type: "button", textContent: "Tắt đồng bộ trên máy này", onclick: () => { rcSet(""); draw(); } })),
+      h("p", { className: "cap", textContent: "Ai có mã này đều xem được danh sách link của bạn, hãy giữ kín." }));
+    else top.push(
+      h("p", { className: "cap", textContent: "Tạo mã khôi phục để giữ lịch sử khi đổi máy hoặc xoá dữ liệu trình duyệt. Không cần tài khoản." }),
+      h("div", { className: "row" }, h("button", { className: "btn", type: "button", textContent: "Tạo mã khôi phục", onclick: async (e) => {
+        e.target.disabled = true;
+        try { rcSet((await jpost("/api/index?op=sync", { action: "create", codes: load().map((x) => x.code) })).recovery); draw(); }
+        catch (x) { say(x.message, true); e.target.disabled = false; } } })));
+    const inp = h("input", { className: "fld", placeholder: "Nhập mã khôi phục từ máy khác", autocomplete: "off", spellcheck: false });
+    const go = h("button", { className: "btn", type: "button", textContent: "Khôi phục", onclick: async () => {
+      if (!inp.value.trim()) return say("Hãy nhập mã khôi phục.", true);
+      go.disabled = true;
+      try {
+        const d = await jpost("/api/index?op=sync", { action: "restore", recovery: inp.value });
+        const cur = load(), have = new Set(cur.map((x) => x.code));
+        const add = d.links.filter((l) => !have.has(l.code)).map((l) => ({ ...l, t: Date.parse(l.created_at) || Date.now() }));
+        rcSet(d.recovery); save([...cur, ...add].sort((a, b) => (b.t || 0) - (a.t || 0))); renderHist(); draw();
+        say(add.length ? `Đã khôi phục ${add.length} link` : "Không có link mới để khôi phục");
+      } catch (x) { say(x.message, true); }
+      go.disabled = false;
+    } });
+    dlg.replaceChildren(...top, h("hr", { className: "sep" }), h("div", { className: "cardform" }, inp, go), msg,
+      h("div", { className: "row" }, h("button", { className: "btn", type: "button", textContent: "Đóng", onclick: () => dlg.close() })));
+  };
+  draw(); dlg.showModal();
+}
+$("#sync").onclick = syncDialog;
+
+/* ───── Biểu đồ nhỏ 7 ngày cho từng link ───── */
+function sparkSvg(v) {
+  const NS = "http://www.w3.org/2000/svg", w = 64, ht = 22, pd = 2, max = Math.max(1, ...v);
+  const pts = v.map((n, i) => (pd + (i * (w - 2 * pd)) / (v.length - 1)).toFixed(1) + "," + (ht - pd - (n / max) * (ht - 2 * pd)).toFixed(1)).join(" ");
+  const s = document.createElementNS(NS, "svg"), pl = document.createElementNS(NS, "polyline"), t = document.createElementNS(NS, "title");
+  s.setAttribute("viewBox", `0 0 ${w} ${ht}`); s.setAttribute("class", "spark"); pl.setAttribute("points", pts);
+  t.textContent = v.reduce((a, b) => a + b, 0) + " lượt trong 7 ngày"; s.append(t, pl); return s;
+}
+async function loadSparks(codes) {
+  if (!codes.length) return;
+  try {
+    const d = await jpost("/api/index?op=spark", { codes: codes.slice(0, 40) });
+    document.querySelectorAll("#hist li[data-code]").forEach((li) => {
+      const v = d.spark[li.dataset.code], a = li.querySelector(".acts");
+      if (!v || !a) return;
+      a.querySelector(".spark")?.remove(); a.prepend(sparkSvg(v));
+    });
+  } catch {}
+}
+
+/* ───── Ảnh QR: tải PNG mọi kiểu, thẻ in sẵn, PDF A6/A5 ───── */
+const toBlob = (c, type, q) => new Promise((ok) => c.toBlob(ok, type, q));
+function saveBlob(b, name) {
+  const u = URL.createObjectURL(b), a = h("a", { href: u, download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
+}
+async function svgImage(url) {
+  const u = URL.createObjectURL(new Blob([await (await fetch(url)).text()], { type: "image/svg+xml" }));
+  try { return await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = u; }); }
+  finally { URL.revokeObjectURL(u); }
+}
+// Kiểu vuông: máy chủ trả PNG. Kiểu khác: máy chủ chỉ có SVG nên vẽ lại trong trình duyệt.
+async function qrBlob(d, px = 1024) {
+  if (!/[?&]shape=/.test(d.qr_url)) return (await fetch(d.qr_url + "&format=png")).blob();
+  const img = await svgImage(d.qr_url + "&format=svg"), c = h("canvas", { width: px, height: px });
+  c.getContext("2d").drawImage(img, 0, 0, px, px); return toBlob(c, "image/png");
+}
+const pngBtn = (d) => h("button", { className: "btn ghost", type: "button", textContent: "Tải PNG",
+  onclick: async () => { try { saveBlob(await qrBlob(d), d.code + ".png"); } catch { toast("Không tải được PNG", true); } } });
+
+const SANS = 'system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+function fitText(x, text, px, maxW) {
+  x.font = `700 ${px}px ${SANS}`;
+  while (x.measureText(text).width > maxW && px > 12) x.font = `700 ${(px -= 2)}px ${SANS}`;
+}
+function drawCard(cv, W, img, brand, cap, d) {
+  const H = Math.round(W * Math.SQRT2), x = cv.getContext("2d"), s = qstyle();
+  cv.width = W; cv.height = H;
+  const ink = contrast(s.fg, "#ffffff") < 3 ? "#111111" : s.fg;
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
+  const m = W * .05, r = W * .05;
+  x.lineWidth = W * .012; x.strokeStyle = ink; x.beginPath();
+  x.moveTo(m + r, m); x.arcTo(W - m, m, W - m, H - m, r); x.arcTo(W - m, H - m, m, H - m, r); x.arcTo(m, H - m, m, m, r); x.arcTo(m, m, W - m, m, r); x.closePath(); x.stroke();
+  x.textAlign = "center"; x.textBaseline = "alphabetic"; x.fillStyle = ink;
+  if (brand) { fitText(x, brand, W * .07, W * .7); x.fillText(brand, W / 2, H * .15); }
+  if (cap) { fitText(x, cap, W * .1, W * .7); x.fillText(cap, W / 2, H * .24); }
+  const q = W * .68; x.drawImage(img, (W - q) / 2, H * .29, q, q);
+  const link = d.short_url.replace(/^https?:\/\//, "");
+  fitText(x, link, W * .055, W * .76); x.fillText(link, W / 2, H * .29 + q + W * .1);
+}
+// PDF tối giản: một trang, một ảnh JPEG phủ kín (không cần thư viện)
+function makePdf(jpg, iw, ih, pw, ph) {
+  const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+  const push = (v) => { const b = typeof v === "string" ? enc.encode(v) : v; parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; push(`${n} 0 obj\n${body}\nendobj\n`); };
+  push("%PDF-1.4\n");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+  offs[4] = len;
+  push(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${iw} /Height ${ih} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+  push(jpg); push("\nendstream\nendobj\n");
+  const c = `q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+  obj(5, `<< /Length ${c.length} >>\nstream\n${c}\nendstream`);
+  const xref = len;
+  push("xref\n0 6\n0000000000 65535 f \n" + [1, 2, 3, 4, 5].map((i) => String(offs[i]).padStart(10, "0") + " 00000 n \n").join("") +
+    `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts, { type: "application/pdf" });
+}
+function cardDialog(d) {
+  const dlg = bigDialog("carddlg");
+  const get = (k, def) => { try { return localStorage.getItem(k) || def; } catch { return def; } };
+  const put = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const brand = h("input", { className: "fld", maxLength: 40, value: get("qr_brand", location.host), placeholder: "Tên thương hiệu", title: "Tên thương hiệu" });
+  const cap = h("input", { className: "fld", maxLength: 30, value: get("qr_cap", "Quét để mở"), placeholder: "Dòng chữ trên mã", title: "Dòng chữ trên mã" });
+  const cv = h("canvas", { className: "cardcv" }), img = svgImage(d.qr_url + "&format=svg");
+  const redraw = async () => { try { drawCard(cv, 620, await img, brand.value.trim(), cap.value.trim(), d); } catch { toast("Không vẽ được thẻ", true); } };
+  const out = async (kind) => {
+    try {
+      const im = await img, c = document.createElement("canvas"), b = brand.value.trim(), t = cap.value.trim();
+      if (kind === "png") { drawCard(c, 1240, im, b, t, d); saveBlob(await toBlob(c, "image/png"), d.code + "-the.png"); return; }
+      drawCard(c, kind === "a6" ? 1240 : 1748, im, b, t, d); // ~300 dpi
+      const jpg = new Uint8Array(await (await toBlob(c, "image/jpeg", .92)).arrayBuffer());
+      const [pw, ph] = kind === "a6" ? [297.64, 419.53] : [419.53, 595.28];
+      saveBlob(makePdf(jpg, c.width, c.height, pw, ph), `${d.code}-${kind.toUpperCase()}.pdf`);
+    } catch { toast("Không tạo được tệp, hãy thử lại", true); }
+  };
+  brand.oninput = () => { put("qr_brand", brand.value); redraw(); };
+  cap.oninput = () => { put("qr_cap", cap.value); redraw(); };
+  dlg.replaceChildren(h("h2", { textContent: "Thẻ QR in sẵn" }), cv, h("div", { className: "cardform" }, brand, cap),
+    h("div", { className: "row" },
+      h("button", { className: "btn", type: "button", textContent: "Tải PNG", onclick: () => out("png") }),
+      h("button", { className: "btn", type: "button", textContent: "PDF A6", onclick: () => out("a6") }),
+      h("button", { className: "btn", type: "button", textContent: "PDF A5", onclick: () => out("a5") }),
+      h("button", { className: "btn ghost", type: "button", textContent: "Đóng", onclick: () => dlg.close() })));
+  dlg.showModal(); redraw();
+}
+
 function fail(msg, focus) {
   $("#err").textContent = msg;
   const f = $("#f"); f.classList.remove("shake"); void f.offsetWidth; f.classList.add("shake");
@@ -310,7 +482,18 @@ $("#url").addEventListener("input", () => {
 });
 $("#pwt").onclick = () => { const p = $("#pw"), show = p.type === "password"; p.type = show ? "text" : "password"; $("#pwt").textContent = show ? "Ẩn" : "Hiện"; };
 $("#strip").onchange = () => $("#url").dispatchEvent(new Event("input"));
-$("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").dispatchEvent(new Event("input")); $("#alias").focus(); };
+// Có link thì lấy tên riêng từ tiêu đề trang đích (máy chủ tải trang, có chặn mạng nội bộ); không được thì dùng tên ngẫu nhiên
+$("#rnd").onclick = async () => {
+  const a = $("#alias"), b = $("#rnd"), u = prep($("#url").value);
+  let v = "", title = "";
+  if (u) {
+    b.disabled = true; b.textContent = "Đang lấy tiêu đề...";
+    try { const d = await call("/api/index?op=suggest&url=" + encodeURIComponent(u)); v = d.alias || ""; title = d.title || ""; } catch {}
+    b.disabled = false; b.textContent = "Gợi ý";
+  }
+  a.value = v || "lk-" + Math.random().toString(36).slice(2, 7); a.dispatchEvent(new Event("input")); a.focus();
+  if (v && title) toast("Gợi ý từ tiêu đề: " + title);
+};
 // Kiểm tra tên riêng còn trống không (gọi sau khi ngừng gõ 400ms)
 let aliasTimer;
 $("#alias").addEventListener("input", () => {
@@ -332,7 +515,7 @@ if (navigator.clipboard && navigator.clipboard.readText) {
     catch { toast("Trình duyệt không cho đọc bộ nhớ tạm, hãy dán thủ công (Ctrl+V)", true); }
   };
 }
-$("#clear").onclick = () => { const bk = load(); save([]); renderHist(); undoable("Đã xoá lịch sử (link vẫn hoạt động)", bk); };
+$("#clear").onclick = () => { const bk = load(); save([]); queueSync(bk.map((x) => x.code)); renderHist(); undoable("Đã xoá lịch sử (link vẫn hoạt động)", bk); };
 $("#csv").onclick = () => {
   const q = (v) => '"' + String(v || "").replace(/"/g, '""') + '"';
   const rows = [["code", "short_url", "url", "created"], ...load().map((x) => [x.code, x.short_url, x.url, x.t ? new Date(x.t).toISOString() : ""])];
