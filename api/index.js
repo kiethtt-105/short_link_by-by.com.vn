@@ -29,7 +29,7 @@ async function shorten(req, res) {
   };
   if (req.method !== "POST") return res.status(405).json({ error: "Chỉ hỗ trợ POST" });
 
-  const key = process.env.API_KEY;
+  const key = (process.env.API_KEY || "").trim();
   // Form trên chính site này (trình duyệt tự gắn sec-fetch-site) không cần key; gọi từ nơi khác thì cần x-api-key
   const sameSite = req.headers["sec-fetch-site"] === "same-origin";
   if (key && !sameSite && !same(String(req.headers["x-api-key"] || ""), key)) {
