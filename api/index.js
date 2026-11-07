@@ -286,6 +286,7 @@ async function redirect(req, res) {
   res.setHeader("Cache-Control", "no-store"); // mỗi lượt bấm đều đi qua server
   const html = (st, p) => { res.setHeader("Content-Type", "text/html; charset=utf-8"); return res.status(st).send(p); };
   // Đường dẫn rác (/wp-login.php, /.env, mã quá dài...) trả 404 ngay: không truy vấn DB, không ghi nhật ký (tránh bị làm đầy bảng logs)
+  if (!["GET", "HEAD", "POST"].includes(req.method)) { res.setHeader("Allow", "GET, HEAD, POST"); return res.status(405).end(); } // OPTIONS/PUT/DELETE không được tính lượt
   if (!ALIAS_RE.test(code)) return req.method === "HEAD" ? res.status(404).end() : html(404, notFoundPage());
   await init();
 
@@ -299,7 +300,10 @@ async function redirect(req, res) {
     if (l.disabled || l.expired || l.used_up) return res.status(410).end();
     return l.pass_hash ? res.status(200).end() : res.redirect(302, l.url);
   }
-  if (!l) { log(req, { action: "not_found", code, status: 404 }); return html(404, notFoundPage()); }
+  if (!l) { // quét web (/wp-admin, /phpmyadmin...) chỉ ghi tối đa 10 lần / phút / IP để không làm đầy bảng logs
+    if (!(await hit("notfound", clientInfo(req).ip, 10))) log(req, { action: "not_found", code, status: 404 });
+    return html(404, notFoundPage());
+  }
   if (l.disabled) { log(req, { action: "disabled_click", code, status: 410 }); return html(410, disabledPage(code)); }
   if (l.expired || l.used_up) { log(req, { action: "expired_click", code, status: 410 }); return html(410, expiredPage(code)); }
 
@@ -625,12 +629,12 @@ async function watch(req, res) {
   const due = await sql`SELECT code, url, fail_count FROM links WHERE NOT disabled AND (expires_at IS NULL OR expires_at > now())
     AND (last_check IS NULL OR last_check < now() - interval '20 hours') ORDER BY last_check NULLS FIRST LIMIT ${n}`;
   const results = await Promise.all(due.map(async (l) => {
-    let status = 0;
-    try { status = (await safeGet(l.url, { maxBytes: 2048, timeoutMs: 4000, redirects: 3 })).status; } catch {}
-    return { ...l, status, bad: status === 0 || status === 404 || status === 410 || status >= 500 };
+    let status = 0, skip = false;
+    try { status = (await safeGet(l.url, { maxBytes: 2048, timeoutMs: 4000, redirects: 3 })).status; } catch (e) { skip = !!e.skip; } // cổng lạ (:8080...) → không kiểm tra, không coi là chết
+    return { ...l, status, skip, bad: !skip && (status === 0 || status === 404 || status === 410 || status >= 500) };
   }));
   if (results.length) {
-    await sql.transaction(results.map((r) => sql`UPDATE links SET last_check = now(), last_status = ${r.status},
+    await sql.transaction(results.map((r) => sql`UPDATE links SET last_check = now(), last_status = ${r.skip ? null : r.status},
       fail_count = ${r.bad ? r.fail_count + 1 : 0} WHERE code = ${r.code}`));
   }
   let dead = 0;
