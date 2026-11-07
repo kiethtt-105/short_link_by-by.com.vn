@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=7">
+<link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body class="home">
 <header class="top">
@@ -38,15 +38,22 @@
         <button id="go" class="go">Rút gọn</button>
       </form>
       <div id="pv" class="pv" aria-live="polite"></div>
-      <details><summary>Tên riêng và tuỳ chọn nâng cao</summary>
-        <div class="alias"><span class="pre"><span class="host"></span>/</span>
-          <input id="alias" autocomplete="off" placeholder="khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
-          <button id="rnd" class="linkbtn" type="button">Gợi ý</button></div>
-        <small id="ac" class="ac" aria-live="polite"></small>
-        <div class="adv">
-          <label>Hết hạn<select id="exp"><option value="">Không hết hạn</option><option value="1">Sau 1 giờ</option><option value="24">Sau 1 ngày</option><option value="168">Sau 7 ngày</option><option value="720">Sau 30 ngày</option></select></label>
-          <label>Giới hạn lượt truy cập<input id="maxc" type="number" min="1" max="10000000" inputmode="numeric" placeholder="Không giới hạn"></label>
-          <label>Mật khẩu mở link<input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt"></label>
+      <details class="opts"><summary>Tên riêng và tuỳ chọn nâng cao</summary>
+        <div class="optbox">
+          <div class="opt full"><label for="alias">Tên riêng</label>
+            <div class="alias"><span class="pre"><span class="host"></span>/</span>
+              <input id="alias" autocomplete="off" placeholder="khuyen-mai (3-32 ký tự)">
+              <button id="rnd" class="linkbtn" type="button">Gợi ý</button></div>
+            <small id="ac" class="ac" aria-live="polite"></small></div>
+          <div class="opt"><label for="exp">Hết hạn</label>
+            <select id="exp"><option value="">Không hết hạn</option><option value="1">Sau 1 giờ</option><option value="24">Sau 1 ngày</option><option value="168">Sau 7 ngày</option><option value="720">Sau 30 ngày</option></select>
+            <small>Sau hạn, link báo đã hết hạn.</small></div>
+          <div class="opt"><label for="maxc">Giới hạn lượt truy cập</label>
+            <input id="maxc" type="number" min="1" max="10000000" inputmode="numeric" placeholder="Không giới hạn">
+            <small>Hết lượt thì link ngừng mở.</small></div>
+          <div class="opt"><label for="pw">Mật khẩu mở link</label>
+            <div class="pwrow"><input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt"><button id="pwt" class="linkbtn" type="button">Hiện</button></div>
+            <small>4-64 ký tự. Người mở phải nhập mật khẩu.</small></div>
         </div>
       </details>
       <div id="cf"></div>
@@ -282,6 +289,7 @@ $("#url").addEventListener("input", () => {
   const raw = $("#url").value.trim(), n = normalize(raw);
   $("#pv").textContent = raw && n !== raw ? "Sẽ rút gọn: " + n : "";
 });
+$("#pwt").onclick = () => { const p = $("#pw"), show = p.type === "password"; p.type = show ? "text" : "password"; $("#pwt").textContent = show ? "Ẩn" : "Hiện"; };
 $("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").dispatchEvent(new Event("input")); $("#alias").focus(); };
 // Kiểm tra tên riêng còn trống không (gọi sau khi ngừng gõ 400ms)
 let aliasTimer;
