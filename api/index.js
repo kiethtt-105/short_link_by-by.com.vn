@@ -4,7 +4,7 @@
 import { randomInt } from "node:crypto";
 import QRCode from "qrcode";
 import {
-  sql, init, log, clientInfo, baseUrl, same,
+  sql, init, log, logOp, clientInfo, baseUrl, same, purgeLogs,
   requireAdmin, getSettings, describeSettings, saveSettings,
 } from "../lib/core.js";
 
@@ -23,8 +23,9 @@ const csvCell = (v) => {
 
 // POST /api/shorten {url, alias?}
 async function shorten(req, res) {
-  const fail = (status, error, action = "create_failed") => {
-    log(req, { action, status, detail: error });
+  // Đợi ghi log xong rồi mới trả lời: giới hạn tốc độ đọc từ log nên không được trễ
+  const fail = async (status, error, action = "create_failed") => {
+    await logOp(req, { action, status, detail: error });
     return res.status(status).json({ error });
   };
   if (req.method !== "POST") return res.status(405).json({ error: "Chỉ hỗ trợ POST" });
@@ -49,6 +50,12 @@ async function shorten(req, res) {
   }
   // Lưu dạng đã mã hoá (u.href): link có tiếng Việt như /đường-đi nếu lưu thô sẽ làm header Location lỗi 500
   const url = u.href;
+  if (u.username || u.password) return fail(400, "Link không được chứa tài khoản hoặc mật khẩu (user:pass@)");
+  const hn = u.hostname.toLowerCase();
+  if (!hn.includes(".") || hn.endsWith(".local") || hn.endsWith(".internal") ||
+      /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(hn)) {
+    return fail(400, "Không rút gọn link nội bộ (localhost, IP riêng, tên máy trong mạng LAN)");
+  }
   const ownHosts = new Set([(req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase()]);
   try { ownHosts.add(new URL(baseUrl(req)).host.toLowerCase()); } catch {}
   if (ownHosts.has(u.host.toLowerCase())) return fail(400, "Không rút gọn link của chính hệ thống này");
@@ -69,7 +76,7 @@ async function shorten(req, res) {
   const limit = cfg.rate_limit_per_min;
   if (limit > 0 && ip) {
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM logs
-      WHERE ip = ${ip} AND action = 'create' AND ts > now() - interval '1 minute'`;
+      WHERE ip = ${ip} AND action IN ('create', 'create_failed', 'blocked_domain') AND ts > now() - interval '1 minute'`;
     if (n >= limit) return fail(429, "Tạo link quá nhanh, thử lại sau", "rate_limited");
   }
 
@@ -88,7 +95,7 @@ async function shorten(req, res) {
     if (!code) return fail(500, "Không sinh được mã ngắn");
   }
 
-  log(req, { action: "create", code, status: 201, detail: url });
+  await logOp(req, { action: "create", code, status: 201, detail: url });
   const base = baseUrl(req);
   res.status(201).json({ code, short_url: `${base}/${code}`, qr_url: `${base}/api/qr?code=${code}`, url });
 }
@@ -111,7 +118,17 @@ async function stats(req, res) {
     GROUP BY 1 ORDER BY clicks DESC LIMIT 10`;
 
   log(req, { action: "stats_view", code, status: 200 });
-  res.json({ ...link, by_day, top_referrers });
+  // Phân tích theo quốc gia / thiết bị / trình duyệt / hệ điều hành (chỉ người thật; bot ghi riêng)
+  const dim = await sql`SELECT country, device, browser, os FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
+      AND ts >= (SELECT created_at FROM links WHERE code = ${code}) ORDER BY id DESC LIMIT 20000`;
+  const top = (k) => {
+    const m = new Map();
+    for (const r of dim) { const v = r[k] || "(không rõ)"; m.set(v, (m.get(v) || 0) + 1); }
+    return [...m].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, clicks]) => ({ name, clicks }));
+  };
+  const [{ bots }] = await sql`SELECT count(*)::int AS bots FROM logs WHERE action = 'bot_click' AND code = ${code}`;
+  res.json({ ...link, by_day, top_referrers, by_country: top("country"), by_device: top("device"),
+    by_browser: top("browser"), by_os: top("os"), bot_clicks: bots });
 }
 
 // GET /api/qr?code=abc&format=png|svg&download=1
@@ -152,6 +169,11 @@ async function qr(req, res) {
   }
 }
 
+const notFoundPage = () => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Link không tồn tại</title>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#06050f;color:#eaf2ff;font:16px system-ui,sans-serif;text-align:center">
+<main><h1 style="font-size:64px;margin:0;color:#22f3ff;text-shadow:0 0 24px #22f3ff">404</h1><p>Link này không tồn tại hoặc đã bị xoá.</p>
+<p><a href="/" style="color:#ff2bd6">Tạo link mới</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#22f3ff">Design by Tuankiet</a></p></main></body></html>`;
+
 // GET /<code> — chuyển hướng + đếm lượt
 async function redirect(req, res) {
   const code = String(req.query.code || "");
@@ -165,13 +187,17 @@ async function redirect(req, res) {
   }
 
   const fromQr = req.query.src === "qr";
-  const rows = await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0}
-                          WHERE code = ${code} RETURNING url`;
+  const { is_bot } = clientInfo(req);
+  // Bot / trình xem trước link (Facebook, Slack, Zalo...) chỉ được chuyển hướng, KHÔNG cộng lượt; ghi riêng 'bot_click'
+  const rows = is_bot
+    ? await sql`SELECT url FROM links WHERE code = ${code}`
+    : await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0} WHERE code = ${code} RETURNING url`;
   if (!rows.length) {
     log(req, { action: "not_found", code, status: 404 });
-    return res.status(404).send("Link không tồn tại");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(404).send(notFoundPage());
   }
-  log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
+  log(req, { action: is_bot ? "bot_click" : fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
   res.redirect(302, rows[0].url);
 }
 
@@ -223,17 +249,17 @@ async function logs(req, res) {
   const action = req.query.action || null;
   const code = req.query.code || null;
   // from sai định dạng thì bỏ qua (trước đây gây lỗi 500)
-  const from = req.query.from && !Number.isNaN(Date.parse(req.query.from)) ? req.query.from : null;
+  const from = req.query.from && !Number.isNaN(Date.parse(req.query.from)) ? new Date(req.query.from).toISOString() : null;
   const afterId = /^\d+$/.test(String(req.query.after_id ?? "")) ? String(req.query.after_id) : null;
 
   await init();
   const rows = afterId !== null
-    ? await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail
+    ? await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail, country, city, device, browser, os, is_bot, meta
         FROM logs WHERE id > ${afterId}::bigint
           AND (${action}::text IS NULL OR action = ${action})
           AND (${code}::text IS NULL OR code = ${code})
         ORDER BY id ASC LIMIT ${limit}`
-    : await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail
+    : await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail, country, city, device, browser, os, is_bot, meta
         FROM logs
         WHERE (${action}::text IS NULL OR action = ${action})
           AND (${code}::text IS NULL OR code = ${code})
@@ -241,8 +267,8 @@ async function logs(req, res) {
         ORDER BY id DESC LIMIT ${limit}`;
 
   if (req.query.format === "csv") {
-    const head = ["id", "ts", "action", "code", "ip", "user_agent", "referrer", "status", "detail"];
-    const body = rows.map((r) => head.map((h) => csvCell(r[h])).join(","));
+    const head = ["id", "ts", "action", "code", "ip", "country", "city", "device", "browser", "os", "is_bot", "user_agent", "referrer", "status", "detail", "meta"];
+    const body = rows.map((r) => head.map((h) => csvCell(h === "meta" ? JSON.stringify(r.meta ?? {}) : r[h])).join(","));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="logs.csv"');
     return res.send("\ufeff" + [head.join(","), ...body].join("\n"));
@@ -269,7 +295,16 @@ async function settings(req, res) {
 }
 
 /* ───────── Router ───────── */
-const routes = { shorten, stats, qr, r: redirect, links, logs, settings };
+// GET /api/cleanup — Vercel Cron (Authorization: Bearer CRON_SECRET) hoặc admin: xoá nhật ký quá hạn
+async function cleanup(req, res) {
+  const cs = (process.env.CRON_SECRET || "").trim();
+  const isCron = cs && same(String(req.headers.authorization || ""), `Bearer ${cs}`);
+  if (!isCron && !(await requireAdmin(req, res))) return;
+  const n = await purgeLogs();
+  log(req, { action: "purge", status: 200, detail: `deleted ${n}` });
+  res.json({ ok: true, deleted: n });
+}
+const routes = { shorten, stats, qr, r: redirect, links, logs, settings, cleanup };
 
 export default async function handler(req, res) {
   const op = req.query.op;

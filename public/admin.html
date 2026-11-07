@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Quản trị</title>
-<meta name="theme-color" content="#06050f">
+<meta name="theme-color" content="#07080f">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -13,126 +13,179 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=2">
+<link rel="stylesheet" href="/style.css?v=3">
 </head>
 <body class="admin">
 <header class="top">
-  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28"><span class="host">Quản trị</span></a>
+  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="26" height="26"><span class="host">Quản trị</span></a>
   <div class="links"><a class="pill" href="/">Trang chủ</a><a class="pill" href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn <span aria-hidden="true">↗</span></a><button id="logout" class="pill" type="button" hidden>Đăng xuất</button></div>
 </header>
 <main>
-  <h1>Quản trị hệ thống</h1>
-  <p class="muted">Đăng nhập để quản lý link, theo dõi nhật ký hoạt động và tùy chỉnh cài đặt.</p>
-  <form id="login">
-    <input id="pass" type="password" placeholder="Mật khẩu quản trị" autocomplete="current-password" aria-label="Mật khẩu quản trị" required>
-    <button id="lbtn" class="primary">Đăng nhập</button>
-  </form>
-  <div id="loginMsg" class="err" role="alert"></div>
+  <section id="gate" class="login">
+    <h1>Quản trị</h1>
+    <p class="muted">Nhập mật khẩu để quản lý link, nhật ký và cài đặt.</p>
+    <form id="login" class="stack">
+      <input id="pass" type="password" placeholder="Mật khẩu quản trị" autocomplete="current-password" aria-label="Mật khẩu quản trị" required>
+      <button id="lbtn" class="b p">Đăng nhập</button>
+    </form>
+    <div id="loginMsg" class="err" role="alert"></div>
+  </section>
 
   <div id="app" hidden>
-    <nav role="tablist">
+    <div id="kpis" class="kpis"></div>
+    <nav class="tabs" role="tablist">
       <button role="tab" data-tab="links" aria-selected="true">Link</button>
       <button role="tab" data-tab="logs" aria-selected="false">Nhật ký</button>
       <button role="tab" data-tab="settings" aria-selected="false">Cài đặt</button>
     </nav>
-
     <section id="links">
-      <div class="bar"><input id="q" placeholder="Tìm theo mã hoặc link gốc" aria-label="Tìm link"><button id="qgo">Tìm</button><span id="sum" class="muted"></span></div>
-      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th>Lượt truy cập</th><th>Trong đó từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
+      <div class="bar"><input id="q" class="grow" placeholder="Tìm theo mã hoặc link gốc (bấm / để tìm nhanh)" aria-label="Tìm link"><span id="sum" class="muted"></span></div>
+      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th class="n">Lượt truy cập</th><th class="n">Từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
     </section>
-
     <section id="logs" hidden>
-      <div class="bar"><select id="act" aria-label="Lọc theo thao tác"></select><button id="lgo">Tải lại</button><button id="csv">Tải CSV</button></div>
-      <div class="wrap"><table><thead><tr><th>Lúc</th><th>Thao tác</th><th>Mã</th><th>IP</th><th>Trạng thái</th><th>Chi tiết</th></tr></thead><tbody id="gbody"></tbody></table></div>
+      <div class="bar"><select id="act" aria-label="Lọc theo thao tác"></select><input id="lf" class="grow" placeholder="Lọc nhanh: IP, mã, quốc gia, thiết bị..." aria-label="Lọc nhanh"><label class="chk"><input type="checkbox" id="auto"> Tự làm mới</label><button id="lgo" class="b">Tải lại</button><button id="csv" class="b">Tải CSV</button></div>
+      <div class="wrap"><table><thead><tr><th>Lúc</th><th>Thao tác</th><th>Mã</th><th>IP</th><th>Vị trí</th><th>Thiết bị</th><th>Trạng thái</th><th>Chi tiết</th></tr></thead><tbody id="gbody"></tbody></table></div>
     </section>
-
     <section id="settings" hidden>
-      <form id="sf"><div id="fields"></div><div class="bar"><button class="primary">Lưu thay đổi</button><span id="msg"></span></div></form>
+      <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
     </section>
   </div>
 </main>
 <footer class="foot">© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+<dialog id="dlg"><div id="dbody"></div><div class="bar" style="margin:16px 0 0"><button id="dclose" class="b" type="button">Đóng</button></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
-document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
+document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 function toast(msg, bad) {
   const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
   clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2600);
 }
-window.alert = (m) => toast(m, true); // mọi thông báo lỗi dùng toast thay hộp thoại
-let pass = "";
-function logout(msg) {
-  pass = ""; $("#app").hidden = true; $("#logout").hidden = true; $("#login").hidden = false;
-  $("#pass").value = ""; $("#loginMsg").textContent = msg || ""; $("#pass").focus();
-}
+window.alert = (m) => toast(m, true);
+let pass = sessionStorage.getItem("ak") || ""; // chỉ nhớ trong tab này, tải lại trang không bị văng ra
 async function raw(path, opt = {}) {
-  const r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", "x-admin-key": pass } });
-  if (!r.ok) { if (r.status === 401 && !$("#app").hidden) logout("Mật khẩu không còn hợp lệ, hãy đăng nhập lại."); const d = await r.json().catch(() => ({})); throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi"); }
+  let r;
+  try { r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", "x-admin-key": pass } }); }
+  catch { throw new Error("Không có kết nối mạng"); }
+  if (!r.ok) {
+    if (r.status === 401 && !$("#app").hidden) logout("Phiên không còn hợp lệ, hãy đăng nhập lại.");
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi " + r.status);
+  }
   return r;
 }
-const api = async (path, opt) => (await raw(path, opt)).json();
-const fmt = (t) => new Date(t).toLocaleString("vi-VN");
-const cell = (v, cls) => h("td", { textContent: v ?? "", className: cls || "", title: v ?? "" });
+const api = async (p, o) => (await raw(p, o)).json();
+const num = (n) => Number(n).toLocaleString("vi-VN");
+const full = (t) => new Date(t).toLocaleString("vi-VN");
+const ago = (t) => { const s = (Date.now() - new Date(t)) / 1e3;
+  return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : new Date(t).toLocaleDateString("vi-VN"); };
+const flag = (c) => (/^[A-Z]{2}$/.test(c || "") ? String.fromCodePoint(...[...c].map((x) => 127397 + x.charCodeAt())) + " " : "");
+const cell = (v, cls, title) => h("td", { textContent: v ?? "", className: cls || "", title: title ?? v ?? "" });
+const chip = (s) => h("span", { className: "chip " + (s >= 500 ? "r" : s >= 400 ? "w" : s >= 300 ? "c" : "g"), textContent: s });
 const empty = (tb, n, text) => tb.replaceChildren(h("tr", {}, h("td", { colSpan: n, className: "muted", textContent: text })));
 
-/* Link */
+/* Hộp chi tiết */
+const dlg = $("#dlg");
+$("#dclose").onclick = () => dlg.close();
+dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+const sect = (title, rows) => h("div", { className: "sect" }, h("h3", { textContent: title }),
+  rows.length ? h("ul", {}, ...rows.map(([k, v]) => h("li", {}, h("span", { textContent: k }), h("b", { textContent: v }))))
+    : h("p", { className: "muted", textContent: "Chưa có dữ liệu" }));
+function showDetail(l, d) {
+  const pair = (a) => a.map((x) => [x.name, x.clicks]);
+  $("#dbody").replaceChildren(h("h2", { textContent: "/" + l.code }), h("p", { className: "muted", textContent: l.url }),
+    sect("Tổng quan", [["Lượt truy cập (người thật)", d.clicks], ["Trong đó quét QR", d.scans], ["Bot / xem trước link", d.bot_clicks ?? 0]]),
+    sect("Quốc gia", pair(d.by_country || [])), sect("Thiết bị", pair(d.by_device || [])), sect("Trình duyệt", pair(d.by_browser || [])),
+    sect("Hệ điều hành", pair(d.by_os || [])), sect("Nguồn truy cập", d.top_referrers.map((x) => [x.referrer, x.clicks])),
+    sect("7 ngày gần nhất", d.by_day.slice(0, 7).map((x) => [String(x.day).slice(0, 10), x.clicks])));
+  dlg.showModal();
+}
+function showLog(x) {
+  $("#dbody").replaceChildren(h("h2", { textContent: "Nhật ký #" + x.id }), h("pre", { textContent: JSON.stringify(x, null, 2) }));
+  dlg.showModal();
+}
+
+/* Link + số liệu tổng */
 async function loadLinks() {
   const d = await api("/api/links?q=" + encodeURIComponent($("#q").value));
-  $("#sum").textContent = `${d.total} link, ${d.clicks} lượt truy cập (${d.scans} từ QR)`;
+  $("#kpis").replaceChildren(...[["Tổng link", num(d.total)], ["Lượt truy cập", num(d.clicks)], ["Lượt quét QR", num(d.scans)],
+    ["Tỉ lệ quét QR", d.clicks ? Math.round((d.scans / d.clicks) * 100) + "%" : "—"]]
+    .map(([k, v]) => h("div", { className: "kpi" }, h("b", { textContent: v }), h("span", { textContent: k }))));
+  $("#sum").textContent = $("#q").value ? `${d.links.length} kết quả` : "";
   const tb = $("#lbody");
-  if (!d.links.length) return empty(tb, 6, "Không có link nào.");
+  if (!d.links.length) return empty(tb, 6, $("#q").value ? "Không tìm thấy link phù hợp." : "Chưa có link nào. Tạo link ở trang chủ.");
   tb.replaceChildren(...d.links.map((l) => {
-    const del = h("button", { className: "del", textContent: "Xoá" });
+    const cp = h("button", { className: "b sm", textContent: "Sao chép" });
+    cp.onclick = async () => { try { await navigator.clipboard.writeText(location.origin + "/" + l.code); toast("Đã sao chép link"); } catch { toast("Không sao chép được", true); } };
+    const det = h("button", { className: "b sm", textContent: "Chi tiết" });
+    det.onclick = async () => { try { showDetail(l, await api("/api/stats?code=" + encodeURIComponent(l.code))); } catch (e) { toast(e.message, true); } };
+    const del = h("button", { className: "b sm danger", textContent: "Xoá" });
     del.onclick = async () => {
       if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
-      try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); loadLinks(); } catch (e) { alert(e.message); }
+      try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); toast("Đã xoá link"); loadLinks(); } catch (e) { toast(e.message, true); }
     };
     return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code })),
-      cell(l.url, "u"), cell(l.clicks), cell(l.scans), cell(fmt(l.created_at)), h("td", {}, del));
+      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, del));
   }));
 }
-$("#qgo").onclick = loadLinks;
-$("#q").addEventListener("keydown", (e) => e.key === "Enter" && loadLinks());
 
 /* Nhật ký */
-const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lượt quét QR", qr_view: "Xem mã QR", stats_view: "Xem thống kê",
+const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lượt quét QR", bot_click: "Bot / xem trước link", qr_view: "Xem mã QR", stats_view: "Xem thống kê",
   not_found: "Link không tồn tại", blocked_domain: "Tên miền bị chặn", rate_limited: "Vượt giới hạn tạo link",
   create_failed: "Tạo link thất bại", auth_failed: "API key không hợp lệ", qr_failed: "Tạo mã QR thất bại",
-  link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", admin_auth_failed: "Đăng nhập quản trị sai" };
+  link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
-async function loadLogs() {
-  const a = $("#act").value, d = await api("/api/logs?limit=100" + (a ? "&action=" + a : ""));
-  const tb = $("#gbody");
-  if (!d.logs.length) return empty(tb, 6, "Chưa có thao tác nào.");
-  tb.replaceChildren(...d.logs.map((x) => h("tr", {}, cell(fmt(x.ts)), h("td", { textContent: ACTION[x.action] || x.action, title: x.action }), cell(x.code), cell(x.ip), cell(x.status), cell(x.detail, "u"))));
+let logRows = [];
+function renderLogs() {
+  const f = $("#lf").value.trim().toLowerCase(), tb = $("#gbody");
+  const rows = f ? logRows.filter((x) => [x.ip, x.code, x.country, x.city, x.device, x.browser, x.os, x.detail, x.referrer].join(" ").toLowerCase().includes(f)) : logRows;
+  if (!rows.length) return empty(tb, 8, f ? "Không có dòng nào khớp bộ lọc." : "Chưa có thao tác nào.");
+  tb.replaceChildren(...rows.map((x) => {
+    const ip = h("button", { className: "ipb", textContent: x.ip || "", title: "Bấm để lọc theo IP này" });
+    ip.onclick = (e) => { e.stopPropagation(); $("#lf").value = x.ip; renderLogs(); };
+    const tr = h("tr", { className: "click", title: "Bấm để xem toàn bộ thông tin" }, cell(ago(x.ts), "", full(x.ts)),
+      cell((x.is_bot ? "🤖 " : "") + (ACTION[x.action] || x.action), "", x.action), cell(x.code), h("td", {}, ip),
+      cell(flag(x.country) + [x.city, x.country].filter(Boolean).join(", ")), cell([x.device, x.browser, x.os].filter(Boolean).join(" · ")),
+      h("td", {}, chip(x.status)), cell(x.detail, "u"));
+    tr.onclick = () => showLog(x);
+    return tr;
+  }));
 }
-$("#lgo").onclick = loadLogs; $("#act").onchange = loadLogs;
+async function loadLogs() {
+  const a = $("#act").value;
+  logRows = (await api("/api/logs?limit=200" + (a ? "&action=" + a : ""))).logs;
+  renderLogs();
+}
+$("#lgo").onclick = () => loadLogs().catch((e) => toast(e.message, true));
+$("#act").onchange = $("#lgo").onclick;
+$("#lf").addEventListener("input", renderLogs);
+let timer;
+$("#auto").onchange = () => { clearInterval(timer); if ($("#auto").checked) timer = setInterval(() => !$("#logs").hidden && loadLogs().catch(() => {}), 10000); };
 $("#csv").onclick = async () => {
   try {
     const a = $("#act").value, r = await raw("/api/logs?format=csv&limit=5000" + (a ? "&action=" + a : ""));
     const url = URL.createObjectURL(await r.blob());
     h("a", { href: url, download: "logs.csv" }).click(); setTimeout(() => URL.revokeObjectURL(url), 4000);
-  } catch (e) { alert(e.message); }
+  } catch (e) { toast(e.message, true); }
 };
 
 /* Cài đặt */
-const SRC = { db: "Đã tùy chỉnh", env: "Theo cấu hình hệ thống", default: "Mặc định" };
+const SRC = { db: "Đã tùy chỉnh", env: "Theo hệ thống", default: "Mặc định" };
 let current = {}; const resetKeys = new Set();
 function renderSettings(s) {
   current = {}; resetKeys.clear(); $("#fields").replaceChildren();
   for (const [k, v] of Object.entries(s)) {
     current[k] = v.value;
     const input = v.type === "enum" ? h("select", { id: k }, ...v.options.map((o) => h("option", { value: o, textContent: o })))
-      : v.type === "text" ? h("textarea", { id: k }) : h("input", { id: k, type: v.type === "int" ? "number" : "color", min: v.min, max: v.max });
+      : v.type === "text" ? h("textarea", { id: k, rows: 2 }) : h("input", { id: k, type: v.type === "int" ? "number" : "color", min: v.min, max: v.max });
     input.value = v.value;
     const badge = h("span", { className: "badge", textContent: SRC[v.source] });
-    const rb = h("button", { type: "button", textContent: "Đặt lại" });
-    rb.onclick = () => { resetKeys.add(k); input.value = v.default; badge.textContent = "sẽ đặt lại khi lưu"; };
-    input.addEventListener("input", () => resetKeys.delete(k));
-    $("#fields").append(h("div", { className: "field" }, h("label", { htmlFor: k, textContent: v.label }),
-      h("div", { className: "row" }, input, badge, rb), v.hint ? h("div", { className: "muted", textContent: v.hint }) : ""));
+    const rb = h("button", { type: "button", className: "linkbtn", textContent: "Đặt lại" });
+    rb.onclick = () => { resetKeys.add(k); input.value = v.default; badge.textContent = "Sẽ đặt lại khi lưu"; };
+    input.addEventListener("input", () => { resetKeys.delete(k); badge.textContent = "Chưa lưu"; });
+    $("#fields").append(h("div", { className: "field" }, h("header", {}, h("label", { htmlFor: k, textContent: v.label }), badge),
+      h("div", { className: "ctrl" }, input, rb), v.hint ? h("div", { className: "hint2", textContent: v.hint }) : ""));
   }
 }
 $("#sf").addEventListener("submit", async (e) => {
@@ -147,21 +200,43 @@ $("#sf").addEventListener("submit", async (e) => {
   catch (x) { msg.className = "err"; msg.textContent = x.message; }
 });
 
-/* Tab và đăng nhập */
-$("#logout").onclick = () => logout("");
+/* Tab (nhớ theo #hash), đăng nhập */
 const loaders = { links: loadLinks, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };
-document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", async () => {
-  document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-selected", x === b));
-  for (const id of Object.keys(loaders)) $("#" + id).hidden = id !== b.dataset.tab;
-  try { await loaders[b.dataset.tab](); } catch (e) { alert(e.message); }
-}));
-$("#login").addEventListener("submit", async (e) => {
-  e.preventDefault(); pass = $("#pass").value; $("#loginMsg").textContent = "";
-  const b = $("#lbtn"); b.disabled = true; b.classList.add("busy");
-  try { await loadLinks(); $("#login").hidden = true; $("#app").hidden = false; $("#logout").hidden = false; }
-  catch (x) { $("#loginMsg").textContent = x.message; pass = ""; }
+async function go(t) {
+  if (!loaders[t]) t = "links";
+  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
+  for (const id of Object.keys(loaders)) $("#" + id).hidden = id !== t;
+  if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
+  try { await loaders[t](); } catch (e) { toast(e.message, true); }
+}
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
+function logout(msg) {
+  pass = ""; sessionStorage.removeItem("ak"); clearInterval(timer); $("#auto").checked = false;
+  $("#app").hidden = true; $("#logout").hidden = true; $("#gate").hidden = false;
+  $("#pass").value = ""; $("#loginMsg").textContent = msg || ""; $("#pass").focus();
+}
+$("#logout").onclick = () => logout("");
+async function enter() {
+  const b = $("#lbtn"); b.disabled = true; b.classList.add("busy"); $("#loginMsg").textContent = "";
+  try {
+    await api("/api/links?limit=1");
+    sessionStorage.setItem("ak", pass);
+    $("#gate").hidden = true; $("#app").hidden = false; $("#logout").hidden = false;
+    const t = location.hash.slice(1);
+    if (t && t !== "links") loadLinks().catch(() => {}); // lấy số liệu tổng cho khung trên cùng
+    await go(t);
+  } catch (x) { $("#loginMsg").textContent = x.message; pass = ""; sessionStorage.removeItem("ak"); }
   b.disabled = false; b.classList.remove("busy");
+}
+$("#login").addEventListener("submit", (e) => { e.preventDefault(); pass = $("#pass").value; enter(); });
+let qt;
+$("#q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => loadLinks().catch((e) => toast(e.message, true)), 300); });
+addEventListener("keydown", (e) => {
+  if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$("#app").hidden) {
+    e.preventDefault(); ($("#logs").hidden ? $("#q") : $("#lf")).focus();
+  }
 });
+if (pass) enter(); else $("#pass").focus();
 </script>
 </body>
 </html>

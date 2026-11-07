@@ -1,9 +1,10 @@
 {
   "rewrites": [
-    { "source": "/api/:op(shorten|stats|qr|links|logs|settings)", "destination": "/api/index?op=:op" },
+    { "source": "/api/:op(shorten|stats|qr|links|logs|settings|cleanup)", "destination": "/api/index?op=:op" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/:code([A-Za-z0-9_-]{3,32})", "destination": "/api/index?op=r&code=:code" }
   ],
+  "crons": [{ "path": "/api/cleanup", "schedule": "0 3 * * *" }],
   "headers": [
     {
       "source": "/style.css",
