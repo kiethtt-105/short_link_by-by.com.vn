@@ -266,7 +266,7 @@ const head = (title) => `<!doctype html><html lang="vi"><head><meta charset="utf
 // Các trang này dùng chung style.css với trang chủ (tự đổi sáng/tối, cùng font, cùng kích thước nút). Form báo cáo vẫn là form HTML thuần, không cần JavaScript.
 const tail = `<p class="gfoot"><a href="/terms.html">Điều khoản</a> · <a href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></p></main></body></html>`;
 const reportForm = (code) => `<details class="greport"><summary>Báo cáo link này</summary>
-<form method="post" action="/api/index?op=report"><input type="hidden" name="code" value="${esc(code)}">
+<form method="post" action="/api/index?op=report"><input type="hidden" name="code" value="${esc(code)}"><input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
 <select class="fld" name="reason" aria-label="Lý do">${Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
 <input class="fld" name="note" maxlength="300" placeholder="Ghi chú (không bắt buộc)" aria-label="Ghi chú">
 <button class="b p">Gửi báo cáo</button></form></details>`;
@@ -289,6 +289,15 @@ async function redirect(req, res) {
   if (!["GET", "HEAD", "POST"].includes(req.method)) { res.setHeader("Allow", "GET, HEAD, POST"); return res.status(405).end(); } // OPTIONS/PUT/DELETE không được tính lượt
   if (!ALIAS_RE.test(code)) return req.method === "HEAD" ? res.status(404).end() : html(404, notFoundPage());
   await init();
+
+  // Đường nhanh: link thường + người thật + GET → cộng lượt và lấy đích trong MỘT truy vấn. Không khớp (khoá, hết hạn, có mật khẩu, không tồn tại...) thì chạy tiếp luồng đầy đủ bên dưới.
+  if (req.method === "GET" && !clientInfo(req).is_bot) {
+    const qr = req.query.src === "qr";
+    const [f] = await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${qr ? 1 : 0}
+      WHERE code = ${code} AND pass_hash IS NULL AND NOT disabled AND (expires_at IS NULL OR expires_at > now())
+        AND (max_clicks IS NULL OR clicks < max_clicks) RETURNING url, clicks, max_clicks`;
+    if (f) return countedClick(req, res, code, f, qr);
+  }
 
   const [l] = await sql`SELECT url, disabled, pass_hash, pass_salt,
     (expires_at IS NOT NULL AND expires_at <= now()) AS expired,
@@ -322,14 +331,18 @@ async function redirect(req, res) {
     WHERE code = ${code} AND NOT disabled AND (expires_at IS NULL OR expires_at > now())
       AND (max_clicks IS NULL OR clicks < max_clicks) RETURNING url, clicks, max_clicks`;
   if (!rows.length) { log(req, { action: "expired_click", code, status: 410 }); return html(410, expiredPage(code)); }
-  log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
+  return countedClick(req, res, code, rows[0], fromQr);
+}
+// Sau khi đã cộng lượt: ghi nhật ký, cảnh báo Telegram (nền) rồi chuyển hướng
+function countedClick(req, res, code, row, fromQr) {
+  log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: row.url });
   // Cảnh báo Telegram (chạy nền, không làm chậm chuyển hướng): chạm giới hạn lượt, hoặc đột biến (chỉ kiểm tra mỗi 10 lượt)
   if (telegramOn()) {
-    const clicks = Number(rows[0].clicks), cap = rows[0].max_clicks ? Number(rows[0].max_clicks) : 0, base = baseUrl(req), to = dest(rows[0].url);
+    const clicks = Number(row.clicks), cap = row.max_clicks ? Number(row.max_clicks) : 0, base = baseUrl(req), to = dest(row.url);
     if (cap && clicks >= cap) bg(alertOnce(code, "limit", `⛔ Link đã hết lượt mở\n${base}/${code} → ${to}\nĐã đủ ${cap} lượt nên link tự ngừng hoạt động. Muốn mở lại: /admin → Sửa → tăng giới hạn lượt.`));
     else if (clicks % 10 === 0) bg(checkSpike(code, base, to));
   }
-  res.redirect(req.method === "POST" ? 303 : 302, rows[0].url);
+  res.redirect(req.method === "POST" ? 303 : 302, row.url);
 }
 // Tên miền đích rút gọn để tin Telegram dễ đọc
 const dest = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return String(u).slice(0, 60); } };
@@ -577,6 +590,7 @@ async function report(req, res) {
   const asJson = String(req.headers["content-type"] || "").includes("application/json"), b = bodyOf(req);
   const done = (st, msg) => asJson ? res.status(st).json(st < 400 ? { ok: true } : { error: msg })
     : (res.setHeader("Content-Type", "text/html; charset=utf-8"), res.status(st).send(page(st < 400 ? "Đã nhận báo cáo" : "Có lỗi", st < 400 ? "✓" : "!", esc(msg))));
+  if (typeof b.website === "string" && b.website) return done(200, "Cảm ơn bạn. Chúng tôi sẽ xem xét và khoá link nếu vi phạm."); // ô bẫy bot: người thật không thấy nên không điền
   if (await hit("report", clientInfo(req).ip, 5)) return done(429, "Gửi quá nhiều báo cáo, hãy thử lại sau.");
   // Chấp nhận cả mã lẫn link ngắn đầy đủ: lấy đoạn cuối của đường dẫn
   const code = String(b.code || "").trim().split(/[?#]/)[0].split("/").filter(Boolean).pop() || "";
@@ -584,12 +598,12 @@ async function report(req, res) {
   const reason = Object.hasOwn(REASONS, b.reason) ? b.reason : "other";
   const note = String(b.note || "").replace(/\s+/g, " ").trim().slice(0, 300);
   const [l] = await sql`SELECT url FROM links WHERE code = ${code}`;
-  if (l) { // link không tồn tại thì bỏ qua lặng lẽ, tránh làm đầy nhật ký bằng mã bịa
+  if (l) { // link không tồn tại thì không ghi nhật ký (tránh làm đầy bảng bằng mã bịa) và báo lỗi cho người gửi
     await logOp(req, { action: "report", code, status: 200, detail: `${REASONS[reason]}${note ? ": " + note : ""}` });
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM logs WHERE action = 'report' AND code = ${code} AND ts > now() - interval '24 hours'`;
     // Gộp: mỗi link chỉ báo Telegram tối đa 1 lần / giờ (mọi báo cáo vẫn nằm trong Nhật ký)
     bg(alertOnce(code, "report", `🚩 Có người báo cáo link vi phạm\n${baseUrl(req)}/${code} → ${l.url}\nLý do: ${REASONS[reason]}${note ? "\nGhi chú: " + note : ""}\nĐây là báo cáo thứ ${n} trong 24 giờ. Nếu đúng vi phạm: /admin → Khoá.`, 1));
-  }
+  } else return done(404, "Không tìm thấy link với mã này. Hãy kiểm tra lại mã hoặc dán đúng link ngắn."); // trước đây vẫn báo "Cảm ơn" dù không ghi gì, dễ tưởng báo cáo đã được nhận
   done(200, "Cảm ơn bạn. Chúng tôi sẽ xem xét và khoá link nếu vi phạm.");
 }
 

@@ -48,6 +48,7 @@
   <h2 id="bao-cao">3. Báo cáo link vi phạm</h2>
   <p>Nếu bạn gặp link ngắn có dấu hiệu lừa đảo hoặc vi phạm, hãy gửi báo cáo bên dưới. Bạn có thể nhập mã link (ví dụ <b>abc12</b>) hoặc dán cả link ngắn.</p>
   <form method="post" action="/api/index?op=report">
+    <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     <input class="fld" name="code" required maxlength="120" placeholder="Mã hoặc link ngắn cần báo cáo" autocomplete="off" aria-label="Mã hoặc link ngắn cần báo cáo">
     <select class="fld" name="reason" aria-label="Lý do">
       <option value="phishing">Lừa đảo / giả mạo</option>
@@ -75,7 +76,7 @@
     <li><b>Khi bạn tạo link:</b> link đích, tên riêng (nếu có), địa chỉ IP, thời điểm tạo. Mật khẩu của link, nếu đặt, chỉ được lưu dưới dạng băm, không đọc lại được.</li>
     <li><b>Khi ai đó bấm link hoặc quét QR:</b> địa chỉ IP, quốc gia và thành phố ước lượng, loại thiết bị, trình duyệt, hệ điều hành, ngôn ngữ, trang giới thiệu (nếu có). Dữ liệu này hiện trong thống kê của link. Người tạo link chỉ xem được tổng số lượt, không xem được thông tin chi tiết của từng người bấm.</li>
     <li><b>Khi bạn gửi báo cáo:</b> mã link, lý do, ghi chú và địa chỉ IP của bạn.</li>
-    <li><b>Nhật ký hệ thống</b> được tự động xoá sau một thời gian do quản trị viên cấu hình (mặc định 180 ngày).</li>
+    <li><b>Nhật ký hệ thống</b> được tự động xoá sau một thời gian do quản trị viên cấu hình (mặc định 90 ngày).</li>
     <li><b>Lịch sử link</b> nằm trong trình duyệt của bạn. Nếu bạn bật "Đồng bộ", danh sách mã link của bạn được lưu trên máy chủ, gắn với một mã khôi phục ngẫu nhiên (máy chủ chỉ giữ bản băm của mã). Ai biết mã khôi phục đều xem được danh sách link, vì vậy hãy giữ kín.</li>
     <li><b>Thông báo vận hành:</b> quản trị viên có thể nhận thông báo qua Telegram về hoạt động của hệ thống (ví dụ link mới, báo cáo, đăng nhập quản trị). Thông báo có thể gồm link, địa chỉ IP và vị trí ước lượng.</li>
     <li><b>Dịch vụ bên thứ ba:</b> Vercel (lưu trữ và thống kê truy cập trang), Neon (cơ sở dữ liệu), Cloudflare Turnstile (chống spam khi tạo link), và có thể có Google Safe Browsing (kiểm tra link độc hại).</li>
