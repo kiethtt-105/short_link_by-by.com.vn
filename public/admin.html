@@ -54,8 +54,8 @@
     <section id="settings" hidden>
       <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
       <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button>
-        <span class="muted">Telegram cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
-      <p class="muted" style="font-size:13px;margin:4px 0 0">Telegram báo các thao tác quan trọng (tạo link, đăng nhập, khoá/xoá/sửa link, đổi cài đặt...) và thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày. Thấy ồn thì tắt bớt ở ô «Telegram: thao tác KHÔNG báo» (mặc định đã tắt click, scan, bot_click, not_found, rate_limited, captcha_failed, wrong_password).</p>
+        <span class="muted">Cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
+      <p class="muted" style="font-size:13px;margin:4px 0 0">Luôn có thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.</p>
     </section>
   </div>
 </main>
@@ -252,10 +252,35 @@ $("#csv").onclick = async () => {
 /* Cài đặt */
 const SRC = { db: "Đã tùy chỉnh", env: "Theo hệ thống", default: "Mặc định" };
 let current = {}; const resetKeys = new Set();
+// Telegram: ô tick theo từng thao tác (tick = có báo). Giá trị lưu là danh sách thao tác KHÔNG báo; rỗng = "none"
+const TELE_OPS = ["create", "admin_login", "admin_auth_failed", "auth_failed", "link_delete", "link_disable", "link_enable", "link_update", "settings_update", "unsafe_url",
+  "blocked_domain", "create_failed", "qr_failed", "expired_click", "disabled_click", "sync_create", "sync_restore", "purge",
+  "click", "scan", "bot_click", "not_found", "wrong_password", "rate_limited", "captcha_failed"];
+const TELE_KEY = new Set(TELE_OPS.slice(0, 10));
+function renderTele(k, v) {
+  const input = h("input", { id: k, type: "hidden" }); input.value = v.value;
+  const badge = h("span", { className: "badge", textContent: SRC[v.source] });
+  const skipped = new Set(v.value.split(",").filter((x) => x && x !== "none"));
+  const boxes = TELE_OPS.map((a) => [a, h("input", { type: "checkbox", checked: !skipped.has(a) })]);
+  const write = () => { input.value = boxes.filter(([, c]) => !c.checked).map(([a]) => a).join(",") || "none"; };
+  const mark = () => { write(); resetKeys.delete(k); badge.textContent = "Chưa lưu"; };
+  boxes.forEach(([, c]) => c.addEventListener("change", mark));
+  const preset = (text, on) => h("button", { type: "button", className: "linkbtn", textContent: text,
+    onclick: () => { boxes.forEach(([a, c]) => (c.checked = on(a))); mark(); } });
+  const rb = h("button", { type: "button", className: "linkbtn", textContent: "Đặt lại", onclick: () => {
+    resetKeys.add(k); input.value = v.default; const d = new Set(v.default.split(","));
+    boxes.forEach(([a, c]) => (c.checked = !d.has(a))); badge.textContent = "Sẽ đặt lại khi lưu"; } });
+  const grid = h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px;margin:8px 0" },
+    ...boxes.map(([a, c]) => h("label", { className: "chk" }, c, " " + (ACTION[a] || a))));
+  $("#fields").append(h("div", { className: "field", style: "grid-column:1/-1" }, h("header", {}, h("label", { textContent: v.label }), badge),
+    h("div", { className: "hint2", textContent: "Tick = có báo về Telegram. Bỏ tick = im lặng." }), grid,
+    h("div", { className: "ctrl" }, preset("Chỉ việc quan trọng", (a) => TELE_KEY.has(a)), preset("Báo tất cả", () => true), rb), input));
+}
 function renderSettings(s) {
   current = {}; resetKeys.clear(); $("#fields").replaceChildren();
   for (const [k, v] of Object.entries(s)) {
     current[k] = v.value;
+    if (k === "tele_skip") { renderTele(k, v); continue; }
     const input = v.type === "enum" ? h("select", { id: k }, ...v.options.map((o) => h("option", { value: o, textContent: o })))
       : v.type === "text" ? h("textarea", { id: k, rows: 2 }) : h("input", { id: k, type: v.type === "int" ? "number" : "color", min: v.min, max: v.max });
     input.value = v.value;

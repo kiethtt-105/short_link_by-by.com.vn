@@ -608,7 +608,7 @@ async function watch(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const base = baseUrl(req);
   if (req.query.test) {
-    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nBạn sẽ nhận tin khi: tạo link, đăng nhập quản trị, khoá/xoá/sửa link, đổi cài đặt... (bấm link, quét QR, bot, 404 mặc định đã tắt)\nCộng thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.\nTắt bớt: Cài đặt → «Telegram: thao tác KHÔNG báo».`) });
+    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nChọn thao tác nào được báo ở /admin → Cài đặt → «Telegram: báo những thao tác nào».`) });
   }
   await init();
 
