@@ -7,7 +7,7 @@ import {
   sql, init, log, logOp, clientInfo, baseUrl, same, purgeLogs,
   requireAdmin, getSettings, describeSettings, saveSettings,
   hit, turnstileOn, verifyTurnstile, unsafeThreat,
-  sha256, bg, telegramOn, notify, alertOnce, safeGet,
+  sha256, bg, telegramOn, notify, alertOnce, claimAlert, releaseAlert, safeGet,
 } from "../lib/core.js";
 
 // Bỏ ký tự dễ nhầm khi đọc/gõ (0 O 1 l I); link cũ có các ký tự này vẫn hoạt động bình thường
@@ -101,8 +101,8 @@ async function shorten(req, res) {
   // Lưu dạng đã mã hoá (u.href): link có tiếng Việt như /đường-đi nếu lưu thô sẽ làm header Location lỗi 500
   const url = u.href;
   if (u.username || u.password) return fail(400, "Link không được chứa tài khoản hoặc mật khẩu (user:pass@)");
-  const hn = u.hostname.toLowerCase();
-  if (!hn.includes(".") || hn.endsWith(".local") || hn.endsWith(".internal") ||
+  const hn = u.hostname.toLowerCase().replace(/\.+$/, ""); // "localhost." (dấu chấm cuối) từng lọt qua kiểm tra nội bộ
+  if (!hn.includes(".") || hn.endsWith(".localhost") || hn.endsWith(".local") || hn.endsWith(".internal") ||
       /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(hn)) {
     return fail(400, "Không rút gọn link nội bộ (localhost, IP riêng, tên máy trong mạng LAN)");
   }
@@ -188,7 +188,7 @@ async function stats(req, res) {
 
   const [link] = await sql`SELECT code, url, clicks, scans, created_at FROM links WHERE code = ${code}`;
   if (!link) return res.status(404).json({ error: "Không tìm thấy link" });
-  if (!isAdmin) return res.json(link);
+  if (!isAdmin) { const { url: _hidden, ...pub } = link; return res.json(pub); } // link có mật khẩu: không được lộ đích đến cho người ngoài
 
   // Gom theo ngày giờ Việt Nam; nguồn truy cập gom theo TÊN MIỀN (bỏ www./m./l.) thay vì URL đầy đủ
   const [by_day, top_referrers, dim, [{ bots }]] = await sql.transaction([
@@ -260,37 +260,33 @@ async function qr(req, res) {
 }
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const FONT = "'Comic Sans MS','Comic Sans','Chalkboard SE','Comic Neue',system-ui,sans-serif";
-const FIELD = "height:42px;padding:0 12px;border-radius:10px;border:1px solid #333a55;background:#0e1018;color:inherit;font:inherit;width:100%;box-sizing:border-box";
 const REASONS = { phishing: "Lừa đảo / giả mạo", malware: "Mã độc / virus", illegal: "Nội dung bị cấm", spam: "Spam", other: "Lý do khác" };
-// Form báo cáo không cần JavaScript, nên trang chạy được kể cả khi CSP chặn script nội tuyến
-const reportForm = (code) => `<details style="margin-top:18px;text-align:left"><summary style="cursor:pointer;color:#8b92ab;text-align:center">Báo cáo link này</summary>
-<form method="post" action="/api/index?op=report" style="display:grid;gap:8px;margin-top:10px"><input type="hidden" name="code" value="${esc(code)}">
-<select name="reason" aria-label="Lý do" style="${FIELD}">${Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-<input name="note" maxlength="300" placeholder="Ghi chú (không bắt buộc)" style="${FIELD}">
-<button style="height:42px;border:0;border-radius:10px;background:#5b8bff;color:#06102e;font:600 15px ${FONT};cursor:pointer">Gửi báo cáo</button></form></details>`;
-const page = (title, big, msg, code) => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title}</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#eaf2ff;font:16px ${FONT};text-align:center">
-<main style="width:min(380px,90vw)"><h1 style="font-size:64px;margin:0;color:#5b8bff;text-shadow:0 0 24px #5b8bff">${big}</h1><p>${msg}</p>
-<p><a href="/" style="display:inline-block;padding:10px 22px;border-radius:10px;background:#5b8bff;color:#06102e;font-weight:600;text-decoration:none">Tạo link mới</a></p>
-${code ? reportForm(code) : ""}
-<p style="font-size:13px;color:#8b92ab"><a href="/terms.html" style="color:#8b92ab">Điều khoản</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#8b92ab">Design by Tuankiet</a></p></main></body></html>`;
+const head = (title) => `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)"><title>${title}</title><link rel="icon" href="/icons/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=14"></head>`;
+// Các trang này dùng chung style.css với trang chủ (tự đổi sáng/tối, cùng font, cùng kích thước nút). Form báo cáo vẫn là form HTML thuần, không cần JavaScript.
+const tail = `<p class="gfoot"><a href="/terms.html">Điều khoản</a> · <a href="https://by.com.vn/" rel="noopener">Design by Tuankiet</a></p></main></body></html>`;
+const reportForm = (code) => `<details class="greport"><summary>Báo cáo link này</summary>
+<form method="post" action="/api/index?op=report"><input type="hidden" name="code" value="${esc(code)}">
+<select class="fld" name="reason" aria-label="Lý do">${Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+<input class="fld" name="note" maxlength="300" placeholder="Ghi chú (không bắt buộc)" aria-label="Ghi chú">
+<button class="b p">Gửi báo cáo</button></form></details>`;
+const page = (title, big, msg, code) => `${head(title)}<body class="gate"><main><h1>${big}</h1><p>${msg}</p>
+<p><a class="go" href="/">Tạo link mới</a></p>${code ? reportForm(code) : ""}${tail}`;
 const notFoundPage = () => page("Link không tồn tại", "404", "Link này không tồn tại hoặc đã bị xoá. Hãy kiểm tra lại cách gõ, hoặc tạo một link mới.");
 const expiredPage = (code) => page("Link đã hết hạn", "410", "Link này đã hết hạn hoặc hết lượt truy cập. Hãy liên hệ người gửi để xin link mới.", code);
-const passPage = (msg = "", code = "") => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link được bảo vệ</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#e8ebf5;font:16px ${FONT};text-align:center">
-<main style="width:min(360px,90vw)"><h1 style="font-size:22px">Link được bảo vệ bằng mật khẩu</h1>
-<form method="post" action="" style="display:grid;gap:10px"><input type="password" name="password" required autofocus autocomplete="off" placeholder="Nhập mật khẩu" style="${FIELD}">
-<button style="height:44px;border:0;border-radius:10px;background:#5b8bff;color:#06102e;font:600 16px ${FONT};cursor:pointer">Mở link</button></form>
-<p style="color:#ff5d78;min-height:1.4em">${msg}</p>${code ? reportForm(code) : ""}</main></body></html>`;
+const passPage = (msg = "", code = "") => `${head("Link được bảo vệ")}<body class="gate"><main><h1 class="sm">Link được bảo vệ bằng mật khẩu</h1>
+<form method="post" action=""><input class="fld" type="password" name="password" required autofocus autocomplete="off" placeholder="Nhập mật khẩu" aria-label="Mật khẩu">
+<button class="go">Mở link</button></form>
+<p class="err" role="alert">${msg}</p>${code ? reportForm(code) : ""}${tail}`;
 const disabledPage = (code) => page("Link đã bị khoá", "410", "Link này đã bị khoá nên không thể truy cập.", code);
 
 // GET /<code> — chuyển hướng + đếm lượt. Link có mật khẩu: GET hiện form, POST kiểm tra rồi chuyển hướng (303)
 async function redirect(req, res) {
   const code = String(req.query.code || "");
-  await init();
   res.setHeader("Cache-Control", "no-store"); // mỗi lượt bấm đều đi qua server
   const html = (st, p) => { res.setHeader("Content-Type", "text/html; charset=utf-8"); return res.status(st).send(p); };
+  // Đường dẫn rác (/wp-login.php, /.env, mã quá dài...) trả 404 ngay: không truy vấn DB, không ghi nhật ký (tránh bị làm đầy bảng logs)
+  if (!ALIAS_RE.test(code)) return req.method === "HEAD" ? res.status(404).end() : html(404, notFoundPage());
+  await init();
 
   const [l] = await sql`SELECT url, disabled, pass_hash, pass_salt,
     (expires_at IS NOT NULL AND expires_at <= now()) AS expired,
@@ -324,18 +320,20 @@ async function redirect(req, res) {
   log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
   // Cảnh báo Telegram (chạy nền, không làm chậm chuyển hướng): chạm giới hạn lượt, hoặc đột biến (chỉ kiểm tra mỗi 10 lượt)
   if (telegramOn()) {
-    const clicks = Number(rows[0].clicks), cap = rows[0].max_clicks ? Number(rows[0].max_clicks) : 0, base = baseUrl(req);
-    if (cap && clicks >= cap) bg(alertOnce(code, "limit", `⛔ ${base}/${code} đã chạm giới hạn ${cap} lượt, link ngừng mở.`));
-    else if (clicks % 10 === 0) bg(checkSpike(code, base));
+    const clicks = Number(rows[0].clicks), cap = rows[0].max_clicks ? Number(rows[0].max_clicks) : 0, base = baseUrl(req), to = dest(rows[0].url);
+    if (cap && clicks >= cap) bg(alertOnce(code, "limit", `⛔ Link đã hết lượt mở\n${base}/${code} → ${to}\nĐã đủ ${cap} lượt nên link tự ngừng hoạt động. Muốn mở lại: /admin → Sửa → tăng giới hạn lượt.`));
+    else if (clicks % 10 === 0) bg(checkSpike(code, base, to));
   }
   res.redirect(req.method === "POST" ? 303 : 302, rows[0].url);
 }
-async function checkSpike(code, base) {
+// Tên miền đích rút gọn để tin Telegram dễ đọc
+const dest = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return String(u).slice(0, 60); } };
+async function checkSpike(code, base, to) {
   try {
     const th = (await getSettings()).alert_spike_clicks;
     if (!th) return;
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM logs WHERE code = ${code} AND action IN ('click', 'scan') AND ts > now() - interval '10 minutes'`;
-    if (n >= th) await alertOnce(code, "spike", `📈 Đột biến: ${base}/${code} có ${n} lượt trong 10 phút qua.`, 1);
+    if (n >= th) await alertOnce(code, "spike", `📈 Link tăng lượt đột biến\n${base}/${code} → ${to}\n${n} lượt trong 10 phút qua (ngưỡng báo: ${th}). Nếu không phải bạn chạy quảng cáo, hãy kiểm tra xem link có bị lạm dụng không.`, 1);
   } catch (e) { console.error("checkSpike lỗi:", e.message); }
 }
 
@@ -414,8 +412,8 @@ async function logs(req, res) {
   if (!(await adminOrSheet(req, res)).ok) return;
 
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 5000);
-  const action = req.query.action || null;
-  const code = req.query.code || null;
+  const action = req.query.action ? String(req.query.action) : null; // ?action=a&action=b từng làm lỗi 500
+  const code = req.query.code ? String(req.query.code) : null;
   // from sai định dạng thì bỏ qua (trước đây gây lỗi 500)
   const from = req.query.from && !Number.isNaN(Date.parse(req.query.from)) ? new Date(req.query.from).toISOString() : null;
   const afterId = /^\d+$/.test(String(req.query.after_id ?? "")) ? String(req.query.after_id) : null;
@@ -498,7 +496,7 @@ async function sync(req, res) {
     return res.json({ ok: true, count: merged.length });
   }
   if (b.action === "restore") {
-    const links = stored.length ? await sql`SELECT code, url, created_at, expires_at, max_clicks, disabled, (pass_hash IS NOT NULL) AS protected
+    const links = stored.length ? await sql`SELECT code, CASE WHEN pass_hash IS NOT NULL THEN '' ELSE url END AS url, created_at, expires_at, max_clicks, disabled, (pass_hash IS NOT NULL) AS protected
       FROM links WHERE code = ANY(${stored}::text[]) ORDER BY created_at DESC` : [];
     if (links.length !== stored.length) { // link đã bị xoá thì bỏ khỏi mã
       await sql`UPDATE recoveries SET codes = ${JSON.stringify(links.map((l) => l.code))}::jsonb, updated_at = now() WHERE id = ${id}`;
@@ -580,7 +578,9 @@ async function report(req, res) {
   const [l] = await sql`SELECT url FROM links WHERE code = ${code}`;
   if (l) { // link không tồn tại thì bỏ qua lặng lẽ, tránh làm đầy nhật ký bằng mã bịa
     await logOp(req, { action: "report", code, status: 200, detail: `${REASONS[reason]}${note ? ": " + note : ""}` });
-    bg(notify(`🚩 Báo cáo link ${baseUrl(req)}/${code}\nLý do: ${REASONS[reason]}${note ? "\nGhi chú: " + note : ""}\nĐích: ${l.url}`));
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM logs WHERE action = 'report' AND code = ${code} AND ts > now() - interval '24 hours'`;
+    // Gộp: mỗi link chỉ báo Telegram tối đa 1 lần / giờ (mọi báo cáo vẫn nằm trong Nhật ký)
+    bg(alertOnce(code, "report", `🚩 Có người báo cáo link vi phạm\n${baseUrl(req)}/${code} → ${l.url}\nLý do: ${REASONS[reason]}${note ? "\nGhi chú: " + note : ""}\nĐây là báo cáo thứ ${n} trong 24 giờ. Nếu đúng vi phạm: /admin → Khoá.`, 1));
   }
   done(200, "Cảm ơn bạn. Chúng tôi sẽ xem xét và khoá link nếu vi phạm.");
 }
@@ -599,14 +599,23 @@ async function watch(req, res) {
   if (!isCron && !(await requireAdmin(req, res))) return;
   res.setHeader("Cache-Control", "no-store");
   const base = baseUrl(req);
-  if (req.query.test) return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}`) });
+  if (req.query.test) {
+    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nBạn sẽ nhận 5 loại tin:\n⛔ Link hết lượt mở\n📈 Link tăng lượt đột biến\n🚩 Có người báo cáo link vi phạm\n⏳ Link hạn dài sắp hết hạn (tin tổng hợp hằng ngày)\n💀 Trang đích của link bị lỗi (tin tổng hợp hằng ngày)`) });
+  }
   await init();
 
-  let expiring = 0;
-  const soon = await sql`SELECT code, expires_at FROM links WHERE NOT disabled AND expires_at > now() AND expires_at <= now() + interval '24 hours'`;
+  // Tin tổng hợp: mỗi lượt chạy chỉ gửi TỐI ĐA 1 tin (trước đây mỗi link một tin nên dễ bị dội tin)
+  const claimed = [], expList = [], deadList = [];
+  const cfg = await getSettings();
+  // Chỉ báo link có hạn ban đầu >= N ngày: link 1 giờ / 1 ngày do khách tự đặt hết hạn là chuyện bình thường, không cần báo
+  const soon = cfg.alert_expiring_min_days ? await sql`SELECT code, url, expires_at FROM links
+    WHERE NOT disabled AND expires_at > now() AND expires_at <= now() + interval '24 hours'
+      AND expires_at - created_at >= make_interval(days => ${cfg.alert_expiring_min_days}::int)
+    ORDER BY expires_at LIMIT 50` : [];
   for (const l of soon) {
-    const when = new Date(l.expires_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-    if (await alertOnce(l.code, "expiring", `⏳ ${base}/${l.code} sẽ hết hạn lúc ${when}.`)) expiring++;
+    if (!(await claimAlert(l.code, "expiring"))) continue;
+    claimed.push([l.code, "expiring"]);
+    expList.push(`• /${l.code} (${dest(l.url)}), hết hạn ${new Date(l.expires_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "short" })}`);
   }
 
   // Link đích "chết" = lỗi mạng, 404, 410 hoặc 5xx, và phải sai 2 lần liên tiếp mới gắn nhãn (tránh báo nhầm khi trang đích chập chờn).
@@ -625,8 +634,18 @@ async function watch(req, res) {
   }
   let dead = 0;
   for (const r of results) {
-    if (r.bad && r.fail_count + 1 >= 2) { dead++; await alertOnce(r.code, "dead", `💀 Link đích lỗi (${r.status || "không kết nối được"}): ${base}/${r.code}\n→ ${r.url}`); }
-    else if (!r.bad && r.fail_count >= 2) await sql`DELETE FROM alerts WHERE code = ${r.code} AND kind = 'dead'`;
+    if (r.bad && r.fail_count + 1 >= 2) {
+      dead++;
+      if (await claimAlert(r.code, "dead")) { claimed.push([r.code, "dead"]); deadList.push(`• /${r.code}: ${r.status ? "HTTP " + r.status : "không kết nối được"} → ${r.url.slice(0, 80)}`); }
+    } else if (!r.bad && r.fail_count >= 2) await sql`DELETE FROM alerts WHERE code = ${r.code} AND kind = 'dead'`;
+  }
+  const expiring = expList.length;
+  if (expiring || deadList.length) {
+    const cut = (a) => a.length > 12 ? [...a.slice(0, 12), `… và ${a.length - 12} link khác (xem trong /admin)`] : a;
+    const text = [`📋 Tổng hợp hằng ngày · ${base}`,
+      expiring && `\n⏳ Sắp hết hạn trong 24 giờ (${expiring}):\n${cut(expList).join("\n")}`,
+      deadList.length && `\n💀 Trang đích bị lỗi (${deadList.length}):\n${cut(deadList).join("\n")}`].filter(Boolean).join("\n");
+    if (!(await notify(text))) await Promise.all(claimed.map(([c, k]) => releaseAlert(c, k))); // gửi hỏng: lần sau báo lại
   }
   log(req, { action: "watch", status: 200, detail: `expiring ${expiring}, checked ${results.length}, dead ${dead}` });
   res.json({ ok: true, expiring, checked: results.length, dead, remaining_hint: results.length === n ? "còn link chưa kiểm tra, chạy lại để tiếp tục" : "" });

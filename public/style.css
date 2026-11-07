@@ -125,7 +125,7 @@ tbody tr:hover{background:rgba(91,139,255,.04)}
 tbody tr:last-child td{border-bottom:0}
 td.u{max-width:280px;overflow:hidden;text-overflow:ellipsis}
 .n{text-align:right;font-variant-numeric:tabular-nums}
-td.acts{display:flex;gap:6px}
+.admin .acts{display:flex;gap:6px;flex-wrap:wrap}
 tr.click{cursor:pointer}
 .ipb{background:none;border:0;padding:0;color:var(--ink);font-variant-numeric:tabular-nums}.ipb:hover{color:var(--c);text-decoration:underline}
 .chip{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;border:1px solid}
@@ -218,7 +218,6 @@ dialog::backdrop{background:rgba(20,28,60,.45)}
 
 /* v13: đồng bộ, sparkline, thẻ QR, trang điều khoản */
 .spark{width:64px;height:22px;flex:none;fill:none;stroke:var(--c);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-@media(max-width:420px){.spark{display:none}}
 .fl{margin:0 0 10px}.fl a{color:var(--mute)}.fl a:hover{color:var(--c)}
 .fld{width:100%;height:42px;padding:0 12px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);outline:0;transition:border-color .2s,box-shadow .2s}
 .fld:focus{border-color:var(--c);box-shadow:0 0 0 3px rgba(91,139,255,.15)}
@@ -234,3 +233,79 @@ dialog::backdrop{background:rgba(20,28,60,.45)}
 .doc li{margin:4px 0}
 .doc form{display:grid;gap:10px;margin-top:12px;padding:18px;background:var(--s1);border:1px solid var(--line);border-radius:var(--R)}
 .doc .muted{margin:0 0 8px}
+
+/* v14: tối ưu laptop + điện thoại */
+.top,.hero,.recent{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.top{flex-wrap:wrap}
+.brand{min-width:0}
+.brand .host{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52vw}
+.foot{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+.toast{bottom:max(26px,calc(env(safe-area-inset-bottom) + 14px))}
+.recent header{flex-wrap:wrap;align-items:center}
+.recent header h2{margin:0 auto 0 0}
+.grid2{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr))}
+.alias .pre{max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.doc form .b{justify-self:start}
+.doc h2{scroll-margin-top:16px}
+@media(min-width:561px) and (max-width:820px){.optbox{grid-template-columns:1fr 1fr}}
+@media(min-width:821px) and (max-height:760px){.hero{padding-top:2vh}.panel{min-height:300px}}
+@media(max-width:820px){#panel:not(.on):not(.load){display:none}}
+@media(pointer:coarse){.go{height:48px}.fld{height:46px}}
+
+/* Trang 404 / 410 / mật khẩu do máy chủ dựng: dùng chung giao diện */
+.gate{display:grid;place-items:center;min-height:100dvh;padding:20px;text-align:center}
+.gate main{width:min(380px,100%)}
+.gate h1{font-size:64px;margin:0 0 8px;color:var(--c);text-shadow:0 0 24px var(--c)}
+.gate h1.sm{font-size:22px;color:var(--ink);text-shadow:none;margin-bottom:16px}
+.gate form{display:grid;gap:10px}
+.gate .err{min-height:1.4em}
+.gate .go{text-decoration:none}
+.greport{margin-top:18px;text-align:left}
+.greport summary{cursor:pointer;color:var(--mute);text-align:center}
+.greport form{margin-top:10px}
+.gfoot{font-size:13px;color:var(--mute);margin-top:22px}.gfoot a{color:var(--mute)}
+@media(prefers-color-scheme:light){.gate h1{text-shadow:none}}
+
+/* Điện thoại */
+@media(max-width:560px){
+  .top{padding-block:12px}
+  .hero{padding-top:12px;padding-bottom:20px;gap:20px}
+  h1{font-size:28px}
+  .lead{margin-bottom:18px}
+  .panel{min-height:0;padding:20px 14px}
+  .panel .row>.btn{flex:1 1 calc(50% - 8px)}
+  .qrbig{padding:16px}
+  .qrbig .row>*{flex:1 1 calc(50% - 8px)}
+  .home #hist li{grid-template-columns:1fr;padding:12px 14px}
+  .home #hist li .acts{grid-row:auto;grid-column:1;justify-content:flex-start;flex-wrap:wrap;gap:6px 18px;margin-top:6px}
+  .home #hist li small{white-space:normal;overflow:visible;word-break:break-word}
+  .doc main{padding:4px 16px 28px}
+  .doc form .b{justify-self:stretch}
+  .admin .pill.ext{display:none}
+  dialog{padding:16px;width:94vw}
+}
+
+/* Quản trị trên điện thoại: bảng chuyển thành thẻ, không phải kéo ngang */
+@media(max-width:720px){
+  .admin main{padding:4px 14px 28px}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:8px}
+  .kpi{padding:12px}.kpi b{font-size:22px}
+  .bar>select,.bar>.grow{flex:1 1 100%}
+  .bar>.b{flex:1 1 auto}
+  .wrap{max-height:none;overflow:visible;background:none;border:0}
+  table,tbody,tr,td{display:block;width:100%;min-width:0}
+  thead{display:none}
+  tbody tr,tbody tr:hover{margin-bottom:10px;padding:4px 14px;background:var(--s1);border:1px solid var(--line);border-radius:var(--R)}
+  td{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:7px 0;white-space:normal;text-align:right;word-break:break-word}
+  td::before{content:attr(data-label);flex:none;color:var(--mute);font-size:12.5px;text-align:left}
+  td:empty{display:none}
+  td:first-child{display:block;text-align:left;font-weight:600;padding-top:10px}
+  td:first-child::before,td[colspan]::before,td.ac-cell::before{display:none}
+  td[colspan]{display:block;text-align:center}
+  td.u{max-width:none;text-overflow:clip}
+  td.ac-cell{display:block;border-bottom:0;padding-bottom:10px}
+  .admin .acts{gap:8px}
+  .admin .acts .b{flex:1 1 calc(33% - 8px)}
+  .admin .sect li{flex-wrap:wrap}
+}
