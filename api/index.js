@@ -264,7 +264,7 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const REASONS = { phishing: "Lừa đảo / giả mạo", malware: "Mã độc / virus", illegal: "Nội dung bị cấm", spam: "Spam", other: "Lý do khác" };
 const head = (title) => `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)"><title>${title}</title><link rel="icon" href="/icons/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=14"></head>`;
 // Các trang này dùng chung style.css với trang chủ (tự đổi sáng/tối, cùng font, cùng kích thước nút). Form báo cáo vẫn là form HTML thuần, không cần JavaScript.
-const tail = `<p class="gfoot"><a href="/terms.html">Điều khoản</a> · <a href="https://by.com.vn/" rel="noopener">Design by Tuankiet</a></p></main></body></html>`;
+const tail = `<p class="gfoot"><a href="/terms.html">Điều khoản</a> · <a href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></p></main></body></html>`;
 const reportForm = (code) => `<details class="greport"><summary>Báo cáo link này</summary>
 <form method="post" action="/api/index?op=report"><input type="hidden" name="code" value="${esc(code)}">
 <select class="fld" name="reason" aria-label="Lý do">${Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
