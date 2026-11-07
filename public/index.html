@@ -28,31 +28,31 @@
 <main>
   <div class="hero">
     <section>
-      <h1>Rút gọn link, kèm mã QR</h1>
-      <p class="lead">Dán link dài để nhận link ngắn và mã QR. Lượt bấm link và lượt quét QR được đếm riêng.</p>
+      <h1>Rút gọn link, có ngay mã QR</h1>
+      <p class="lead">Dán link dài vào, nhận ngay link ngắn kèm mã QR. Mỗi lượt bấm và mỗi lượt quét QR đều được đếm riêng.</p>
       <form id="f" novalidate>
-        <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" enterkeyhint="go" spellcheck="false" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn">
+        <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" enterkeyhint="go" spellcheck="false" placeholder="Dán link dài của bạn vào đây" aria-label="Link cần rút gọn">
         <button id="paste" class="linkbtn" type="button" hidden>Dán</button>
         <button id="go" class="go">Rút gọn</button>
       </form>
       <div id="pv" class="pv" aria-live="polite"></div>
-      <details class="opts"><summary>Tên riêng và tuỳ chọn nâng cao</summary>
+      <details class="opts"><summary>Tuỳ chọn thêm: tên riêng, hạn dùng, mật khẩu</summary>
         <div class="optbox">
-          <div class="opt full"><label for="alias">Tên riêng</label>
+          <div class="opt full"><label for="alias">Tên riêng cho link</label>
             <div class="alias"><span class="pre"><span class="host"></span>/</span>
               <input id="alias" autocomplete="off" placeholder="khuyen-mai (3-32 ký tự)">
               <button id="rnd" class="linkbtn" type="button">Gợi ý</button></div>
             <small id="ac" class="ac" aria-live="polite"></small></div>
-          <div class="opt"><label for="exp">Hết hạn</label>
+          <div class="opt"><label for="exp">Hạn dùng</label>
             <select id="exp"><option value="">Không hết hạn</option><option value="1">Sau 1 giờ</option><option value="24">Sau 1 ngày</option><option value="168">Sau 7 ngày</option><option value="720">Sau 30 ngày</option></select>
-            <small>Sau hạn, link báo đã hết hạn.</small></div>
-          <div class="opt"><label for="maxc">Giới hạn lượt truy cập</label>
+            <small>Quá hạn, link sẽ báo đã hết hạn.</small></div>
+          <div class="opt"><label for="maxc">Số lượt mở tối đa</label>
             <input id="maxc" type="number" min="1" max="10000000" inputmode="numeric" placeholder="Không giới hạn">
-            <small>Hết lượt thì link ngừng mở.</small></div>
-          <div class="opt"><label for="pw">Mật khẩu mở link</label>
-            <div class="pwrow"><input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt"><button id="pwt" class="linkbtn" type="button">Hiện</button></div>
-            <small>4-64 ký tự. Người mở phải nhập mật khẩu.</small></div>
-          <label class="opt full tick"><input type="checkbox" id="strip"> Bỏ tham số theo dõi khỏi link (utm_*, fbclid, gclid...)</label>
+            <small>Đủ số lượt, link tự ngừng hoạt động.</small></div>
+          <div class="opt"><label for="pw">Mật khẩu bảo vệ</label>
+            <div class="pwrow"><input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt mật khẩu"><button id="pwt" class="linkbtn" type="button">Hiện</button></div>
+            <small>4-64 ký tự. Ai mở link cũng phải nhập mật khẩu.</small></div>
+          <label class="opt full tick"><input type="checkbox" id="strip"> Xoá mã theo dõi quảng cáo khỏi link (utm_*, fbclid, gclid...)</label>
         </div>
       </details>
       <div id="cf"></div>
