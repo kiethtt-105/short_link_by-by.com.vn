@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=4">
+<link rel="stylesheet" href="/style.css?v=5">
 </head>
 <body class="admin">
 <header class="top">
@@ -63,15 +63,16 @@ function toast(msg, bad) {
   clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2600);
 }
 window.alert = (m) => toast(m, true);
-let pass = sessionStorage.getItem("ak") || ""; // chỉ nhớ trong tab này, tải lại trang không bị văng ra
+let sess = ""; try { sess = localStorage.getItem("as") || ""; } catch {} // phiên đăng nhập: giữ cho đến khi có máy khác đăng nhập
 async function raw(path, opt = {}) {
   let r;
-  try { r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", "x-admin-key": pass } }); }
+  try { r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", ...(sess ? { "x-admin-session": sess } : {}), ...(opt.headers || {}) } }); }
   catch { throw new Error("Không có kết nối mạng"); }
   if (!r.ok) {
-    if (r.status === 401 && !$("#app").hidden) logout("Phiên không còn hợp lệ, hãy đăng nhập lại.");
     const d = await r.json().catch(() => ({}));
-    throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi " + r.status);
+    const msg = d.error || (d.errors || []).join("; ") || "Lỗi " + r.status;
+    if (r.status === 401 && !$("#app").hidden) logout(d.code === "session_replaced" ? msg : "Phiên không còn hợp lệ, hãy đăng nhập lại.");
+    throw new Error(msg);
   }
   return r;
 }
@@ -220,24 +221,29 @@ async function go(t) {
 }
 document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
 function logout(msg) {
-  pass = ""; sessionStorage.removeItem("ak"); clearInterval(timer); $("#auto").checked = false;
+  sess = ""; try { localStorage.removeItem("as"); } catch {} clearInterval(timer); $("#auto").checked = false;
   $("#app").hidden = true; $("#logout").hidden = true; $("#gate").hidden = false;
   $("#pass").value = ""; $("#loginMsg").textContent = msg || ""; $("#pass").focus();
 }
 $("#logout").onclick = () => logout("");
-async function enter() {
+async function enter(password) {
   const b = $("#lbtn"); b.disabled = true; b.classList.add("busy"); $("#loginMsg").textContent = "";
   try {
-    await api("/api/links?limit=1");
-    sessionStorage.setItem("ak", pass);
+    if (password) { // đăng nhập mới: đổi mật khẩu lấy phiên (máy khác đang đăng nhập sẽ bị đăng xuất)
+      sess = "";
+      const r = await raw("/api/links?limit=1", { headers: { "x-admin-key": password, "x-admin-login": "1" } });
+      sess = r.headers.get("x-admin-session") || "";
+      if (!sess) throw new Error("Không tạo được phiên đăng nhập, hãy thử lại.");
+      try { localStorage.setItem("as", sess); } catch {}
+    } else await api("/api/links?limit=1"); // mở lại trang: dùng phiên đã lưu
     $("#gate").hidden = true; $("#app").hidden = false; $("#logout").hidden = false;
     const t = location.hash.slice(1);
     if (t && t !== "links") loadLinks().catch(() => {}); // lấy số liệu tổng cho khung trên cùng
     await go(t);
-  } catch (x) { $("#loginMsg").textContent = x.message; pass = ""; sessionStorage.removeItem("ak"); }
+  } catch (x) { $("#loginMsg").textContent = x.message; sess = ""; try { localStorage.removeItem("as"); } catch {} }
   b.disabled = false; b.classList.remove("busy");
 }
-$("#login").addEventListener("submit", (e) => { e.preventDefault(); pass = $("#pass").value; enter(); });
+$("#login").addEventListener("submit", (e) => { e.preventDefault(); enter($("#pass").value); });
 let qt;
 $("#q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => loadLinks().catch((e) => toast(e.message, true)), 300); });
 addEventListener("keydown", (e) => {
@@ -245,7 +251,7 @@ addEventListener("keydown", (e) => {
     e.preventDefault(); ($("#logs").hidden ? $("#q") : $("#lf")).focus();
   }
 });
-if (pass) enter(); else $("#pass").focus();
+if (sess) enter(); else $("#pass").focus();
 </script>
 </body>
 </html>

@@ -119,7 +119,7 @@ async function stats(req, res) {
   if (!ALIAS_RE.test(code)) return res.status(404).json({ error: "Không tìm thấy link" });
   res.setHeader("Cache-Control", "no-store");
 
-  const isAdmin = !!req.headers["x-admin-key"];
+  const isAdmin = !!(req.headers["x-admin-key"] || req.headers["x-admin-session"]);
   if (isAdmin && !(await requireAdmin(req, res))) return;
   await init();
   if (!isAdmin && (await hit("stats", clientInfo(req).ip, STATS_LIMIT))) {
