@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import {
   sql, init, log, logOp, clientInfo, baseUrl, same, purgeLogs,
   requireAdmin, getSettings, describeSettings, saveSettings,
+  hit, turnstileOn, verifyTurnstile, unsafeThreat,
 } from "../lib/core.js";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -21,21 +22,21 @@ const csvCell = (v) => {
 
 /* ───────── Công khai ───────── */
 
-// POST /api/shorten {url, alias?}
+// POST /api/shorten {url, alias?, turnstile?}
 async function shorten(req, res) {
-  // Đợi ghi log xong rồi mới trả lời: giới hạn tốc độ đọc từ log nên không được trễ
+  // Đợi ghi log xong rồi mới trả lời: các thống kê/giới hạn đọc từ DB không được trễ
   const fail = async (status, error, action = "create_failed") => {
     await logOp(req, { action, status, detail: error });
     return res.status(status).json({ error });
   };
   if (req.method !== "POST") return res.status(405).json({ error: "Chỉ hỗ trợ POST" });
 
-  const key = (process.env.API_KEY || "").trim();
-  // Form trên chính site này (trình duyệt tự gắn sec-fetch-site) không cần key; gọi từ nơi khác thì cần x-api-key
-  const sameSite = req.headers["sec-fetch-site"] === "same-origin";
-  if (key && !sameSite && !same(String(req.headers["x-api-key"] || ""), key)) {
-    return fail(401, "API key không hợp lệ", "auth_failed");
-  }
+  await init();
+  const { ip } = clientInfo(req);
+  const cfg = await getSettings();
+
+  // Giới hạn tốc độ đặt NGAY ĐẦU: mọi lượt gọi (kể cả sai) đều được tính, trước khi tốn tài nguyên xác minh
+  if (await hit("create", ip, cfg.rate_limit_per_min)) return fail(429, "Tạo link quá nhanh, thử lại sau", "rate_limited");
 
   // Chỉ nhận chuỗi (số/mảng/object từng làm lỗi 500)
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -63,22 +64,31 @@ async function shorten(req, res) {
     return fail(400, "Alias gồm 3-32 ký tự chữ, số, _ hoặc - (không dùng từ dành riêng)");
   }
 
-  await init();
-  const { ip } = clientInfo(req);
-  const cfg = await getSettings();
+  // Xác thực. Header x-sec-fetch-site do client tự đặt được nên KHÔNG còn dùng để miễn key:
+  //  • có x-api-key đúng → qua (gọi từ máy chủ / ứng dụng khác)
+  //  • không có key → cần token Turnstile (form trên web). Chưa cấu hình Turnstile thì dùng cách cũ (same-origin) để không gãy hệ thống.
+  const apiKey = (process.env.API_KEY || "").trim();
+  const sentKey = String(req.headers["x-api-key"] || "");
+  const keyOk = !!apiKey && !!sentKey && same(sentKey, apiKey);
+  if (apiKey && sentKey && !keyOk) return fail(401, "API key không hợp lệ", "auth_failed");
+  if (!keyOk) {
+    if (turnstileOn()) {
+      if (!(await verifyTurnstile(body.turnstile, ip))) {
+        return fail(403, "Xác minh chống spam không thành công, hãy tải lại trang rồi thử lại", "captcha_failed");
+      }
+    } else if (apiKey && req.headers["sec-fetch-site"] !== "same-origin") {
+      return fail(401, "API key không hợp lệ", "auth_failed");
+    }
+  }
 
-  const host = u.hostname.toLowerCase();
   const blocked = cfg.blocked_domains.split(",").filter(Boolean);
-  if (blocked.some((d) => host === d || host.endsWith("." + d))) {
+  if (blocked.some((d) => hn === d || hn.endsWith("." + d))) {
     return fail(403, "Tên miền này bị chặn", "blocked_domain");
   }
 
-  const limit = cfg.rate_limit_per_min;
-  if (limit > 0 && ip) {
-    const [{ n }] = await sql`SELECT count(*)::int AS n FROM logs
-      WHERE ip = ${ip} AND action IN ('create', 'create_failed', 'blocked_domain') AND ts > now() - interval '1 minute'`;
-    if (n >= limit) return fail(429, "Tạo link quá nhanh, thử lại sau", "rate_limited");
-  }
+  // Link độc hại (phishing, mã độc) theo Google Safe Browsing. Bỏ qua nếu chưa đặt SAFE_BROWSING_KEY.
+  const threat = await unsafeThreat(url);
+  if (threat) return fail(400, "Link này bị đánh dấu là không an toàn nên không thể rút gọn", "unsafe_url");
 
   let code = alias || null;
   if (code) {
@@ -100,33 +110,49 @@ async function shorten(req, res) {
   res.status(201).json({ code, short_url: `${base}/${code}`, qr_url: `${base}/api/qr?code=${code}`, url });
 }
 
-// GET /api/stats?code=abc — công khai, không trả IP
+// GET /api/stats?code=abc
+//  • Công khai: chỉ trả tổng lượt (đủ cho nút "Xem số liệu" ở trang chủ), có giới hạn tốc độ.
+//  • Kèm x-admin-key: trả đủ phân tích (ngày, nguồn, quốc gia, thiết bị...). Tất cả gộp bằng SQL, 1 lượt gọi mạng.
+const STATS_LIMIT = Number(process.env.STATS_RATE_LIMIT_PER_MIN) || 60;
 async function stats(req, res) {
   const code = String(req.query.code || "");
+  if (!ALIAS_RE.test(code)) return res.status(404).json({ error: "Không tìm thấy link" });
+  res.setHeader("Cache-Control", "no-store");
+
+  const isAdmin = !!req.headers["x-admin-key"];
+  if (isAdmin && !(await requireAdmin(req, res))) return;
   await init();
+  if (!isAdmin && (await hit("stats", clientInfo(req).ip, STATS_LIMIT))) {
+    return res.status(429).json({ error: "Xem số liệu quá nhanh, thử lại sau" });
+  }
+
   const [link] = await sql`SELECT code, url, clicks, scans, created_at FROM links WHERE code = ${code}`;
   if (!link) return res.status(404).json({ error: "Không tìm thấy link" });
+  if (!isAdmin) return res.json(link);
 
-  // Gom theo ngày giờ Việt Nam
-  const by_day = await sql`SELECT (ts AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day, count(*)::int AS clicks
-    FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
-      AND ts >= (SELECT created_at FROM links WHERE code = ${code})
-    GROUP BY day ORDER BY day DESC LIMIT 30`;
-  const top_referrers = await sql`SELECT COALESCE(NULLIF(referrer, ''), '(trực tiếp)') AS referrer,
-    count(*)::int AS clicks FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
-      AND ts >= (SELECT created_at FROM links WHERE code = ${code})
-    GROUP BY 1 ORDER BY clicks DESC LIMIT 10`;
+  // Gom theo ngày giờ Việt Nam; nguồn truy cập gom theo TÊN MIỀN (bỏ www./m./l.) thay vì URL đầy đủ
+  const [by_day, top_referrers, dim, [{ bots }]] = await sql.transaction([
+    sql`SELECT (ts AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day, count(*)::int AS clicks
+      FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
+        AND ts >= (SELECT created_at FROM links WHERE code = ${code})
+      GROUP BY day ORDER BY day DESC LIMIT 30`,
+    sql`SELECT COALESCE(NULLIF(regexp_replace(lower(substring(referrer from '^[A-Za-z]+://([^/:?#]+)')), '^(www|m|l|lm|mobile)\\.', ''), ''), '(trực tiếp)') AS referrer,
+      count(*)::int AS clicks FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
+        AND ts >= (SELECT created_at FROM links WHERE code = ${code})
+      GROUP BY 1 ORDER BY clicks DESC LIMIT 10`,
+    // Quốc gia / thiết bị / trình duyệt / hệ điều hành (chỉ người thật; bot ghi riêng), đếm toàn bộ thay vì 20.000 dòng gần nhất
+    sql`WITH base AS (SELECT country, device, browser, os FROM logs
+          WHERE action IN ('click', 'scan') AND code = ${code}
+            AND ts >= (SELECT created_at FROM links WHERE code = ${code}))
+        SELECT 'country' AS k, COALESCE(NULLIF(country, ''), '(không rõ)') AS name, count(*)::int AS clicks FROM base GROUP BY 2
+        UNION ALL SELECT 'device', COALESCE(NULLIF(device, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2
+        UNION ALL SELECT 'browser', COALESCE(NULLIF(browser, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2
+        UNION ALL SELECT 'os', COALESCE(NULLIF(os, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2`,
+    sql`SELECT count(*)::int AS bots FROM logs WHERE action = 'bot_click' AND code = ${code}`,
+  ]);
+  const top = (k) => dim.filter((r) => r.k === k).sort((a, b) => b.clicks - a.clicks).slice(0, 8)
+    .map(({ name, clicks }) => ({ name, clicks }));
 
-  log(req, { action: "stats_view", code, status: 200 });
-  // Phân tích theo quốc gia / thiết bị / trình duyệt / hệ điều hành (chỉ người thật; bot ghi riêng)
-  const dim = await sql`SELECT country, device, browser, os FROM logs WHERE action IN ('click', 'scan') AND code = ${code}
-      AND ts >= (SELECT created_at FROM links WHERE code = ${code}) ORDER BY id DESC LIMIT 20000`;
-  const top = (k) => {
-    const m = new Map();
-    for (const r of dim) { const v = r[k] || "(không rõ)"; m.set(v, (m.get(v) || 0) + 1); }
-    return [...m].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, clicks]) => ({ name, clicks }));
-  };
-  const [{ bots }] = await sql`SELECT count(*)::int AS bots FROM logs WHERE action = 'bot_click' AND code = ${code}`;
   res.json({ ...link, by_day, top_referrers, by_country: top("country"), by_device: top("device"),
     by_browser: top("browser"), by_os: top("os"), bot_clicks: bots });
 }
@@ -161,7 +187,6 @@ async function qr(req, res) {
     }
     if (req.query.download) res.setHeader("Content-Disposition", `attachment; filename="${code}.${fmt}"`);
     res.setHeader("Cache-Control", "private, max-age=300");
-    log(req, { action: "qr_view", code, status: 200, detail: fmt });
     return res.status(200).send(body);
   } catch (e) {
     log(req, { action: "qr_failed", code, status: 500, detail: e.message });
@@ -169,10 +194,12 @@ async function qr(req, res) {
   }
 }
 
-const notFoundPage = () => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Link không tồn tại</title>
+const page = (title, big, msg) => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#06050f;color:#eaf2ff;font:16px system-ui,sans-serif;text-align:center">
-<main><h1 style="font-size:64px;margin:0;color:#22f3ff;text-shadow:0 0 24px #22f3ff">404</h1><p>Link này không tồn tại hoặc đã bị xoá.</p>
+<main><h1 style="font-size:64px;margin:0;color:#22f3ff;text-shadow:0 0 24px #22f3ff">${big}</h1><p>${msg}</p>
 <p><a href="/" style="color:#ff2bd6">Tạo link mới</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#22f3ff">Design by Tuankiet</a></p></main></body></html>`;
+const notFoundPage = () => page("Link không tồn tại", "404", "Link này không tồn tại hoặc đã bị xoá.");
+const disabledPage = () => page("Link đã bị khoá", "410", "Link này đã bị khoá nên không thể truy cập.");
 
 // GET /<code> — chuyển hướng + đếm lượt
 async function redirect(req, res) {
@@ -180,22 +207,31 @@ async function redirect(req, res) {
   await init();
   res.setHeader("Cache-Control", "no-store"); // mỗi lượt bấm đều đi qua server
 
-  // HEAD (bot xem trước, kiểm tra link) chỉ trả đích, không đếm
+  // HEAD (bot xem trước, kiểm tra link) chỉ trả đích, không đếm; link bị khoá thì 410
   if (req.method === "HEAD") {
-    const [l] = await sql`SELECT url FROM links WHERE code = ${code}`;
-    return l ? res.redirect(302, l.url) : res.status(404).end();
+    const [l] = await sql`SELECT url, disabled FROM links WHERE code = ${code}`;
+    if (!l) return res.status(404).end();
+    return l.disabled ? res.status(410).end() : res.redirect(302, l.url);
   }
 
   const fromQr = req.query.src === "qr";
   const { is_bot } = clientInfo(req);
   // Bot / trình xem trước link (Facebook, Slack, Zalo...) chỉ được chuyển hướng, KHÔNG cộng lượt; ghi riêng 'bot_click'
-  const rows = is_bot
-    ? await sql`SELECT url FROM links WHERE code = ${code}`
-    : await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0} WHERE code = ${code} RETURNING url`;
+  let rows = is_bot
+    ? await sql`SELECT url, disabled FROM links WHERE code = ${code}`
+    : await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0}
+                WHERE code = ${code} AND NOT disabled RETURNING url, disabled`;
+  // UPDATE không trúng dòng nào: hoặc link không có, hoặc link đang bị khoá → tra lại để phân biệt
+  if (!rows.length && !is_bot) rows = await sql`SELECT url, disabled FROM links WHERE code = ${code}`;
   if (!rows.length) {
     log(req, { action: "not_found", code, status: 404 });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(404).send(notFoundPage());
+  }
+  if (rows[0].disabled) {
+    log(req, { action: "disabled_click", code, status: 410 });
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(410).send(disabledPage());
   }
   log(req, { action: is_bot ? "bot_click" : fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
   res.redirect(302, rows[0].url);
@@ -214,7 +250,7 @@ async function adminOrSheet(req, res) {
   return { ok: await requireAdmin(req, res), viaSheet: false };
 }
 
-// GET /api/links?q=&limit=50   DELETE /api/links?code=abc
+// GET /api/links?q=&limit=50   PATCH /api/links?code=abc {disabled}   DELETE /api/links?code=abc
 async function links(req, res) {
   const auth = await adminOrSheet(req, res);
   if (!auth.ok) return;
@@ -227,12 +263,22 @@ async function links(req, res) {
     log(req, { action: "link_delete", code, status: 200, detail: r[0].url });
     return res.json({ ok: true });
   }
-  if (req.method !== "GET") return res.status(405).json({ error: "Chỉ hỗ trợ GET hoặc DELETE" });
+  if (req.method === "PATCH") { // khoá / mở khoá link (không mất số liệu)
+    if (auth.viaSheet) return res.status(403).json({ error: "Không đủ quyền" });
+    const code = String(req.query.code || "");
+    const b = req.body && typeof req.body === "object" ? req.body : {};
+    if (typeof b.disabled !== "boolean") return res.status(400).json({ error: "disabled phải là true hoặc false" });
+    const r = await sql`UPDATE links SET disabled = ${b.disabled} WHERE code = ${code} RETURNING disabled`;
+    if (!r.length) return res.status(404).json({ error: "Không tìm thấy link" });
+    log(req, { action: b.disabled ? "link_disable" : "link_enable", code, status: 200 });
+    return res.json({ ok: true, disabled: r[0].disabled });
+  }
+  if (req.method !== "GET") return res.status(405).json({ error: "Chỉ hỗ trợ GET, PATCH hoặc DELETE" });
 
   const q = String(req.query.q || "").slice(0, 100);
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), auth.viaSheet ? 20000 : 200);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
-  const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip FROM links
+  const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip, disabled FROM links
     WHERE (${q} = '' OR code ILIKE ${like} OR url ILIKE ${like})
     ORDER BY created_at DESC LIMIT ${limit}`;
   const [t] = await sql`SELECT count(*)::int AS total, COALESCE(sum(clicks), 0)::int AS clicks,

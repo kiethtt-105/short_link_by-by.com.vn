@@ -6,6 +6,8 @@
 <title>Rút gọn link và tạo mã QR</title>
 <meta name="description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
 <meta name="theme-color" content="#06050f">
+<!-- Site key Cloudflare Turnstile (công khai, dán vào content). Để trống = tắt captcha. -->
+<meta name="turnstile-sitekey" content="">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -13,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=3">
+<link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body class="home">
 <header class="top">
@@ -33,6 +35,7 @@
       <details><summary>Đặt tên riêng cho link</summary>
         <input id="alias" autocomplete="off" placeholder="vd: khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
       </details>
+      <div id="cf"></div>
       <div id="err" class="err" role="alert"></div>
     </section>
     <section id="panel" class="panel" aria-live="polite">
@@ -141,13 +144,15 @@ $("#f").addEventListener("submit", async (e) => {
     return fail("Tên riêng gồm 3-32 ký tự chữ, số, _ hoặc -.", $("#alias"));
   }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
+  if (SITE_KEY && !tsToken) return fail("Đang xác minh chống spam, vui lòng thử lại sau giây lát.");
   go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
   try {
     const d = await call("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, alias: alias || undefined }) });
+      body: JSON.stringify({ url, alias: alias || undefined, turnstile: tsToken || undefined }) });
     showResult(d); save([d, ...load().filter((x) => x.code !== d.code)]); renderHist();
     $("#url").value = ""; $("#alias").value = ""; toast("Đã tạo link ngắn");
   } catch (x) { showIdle(); fail(x.message); }
+  tsReset(); // token Turnstile chỉ dùng được một lần
   go.disabled = false; go.classList.remove("busy"); go.textContent = "Rút gọn";
 });
 $("#url").addEventListener("input", () => ($("#err").textContent = ""));
@@ -161,6 +166,17 @@ if (navigator.clipboard && navigator.clipboard.readText) {
 $("#clear").onclick = () => { if (confirm("Xoá lịch sử link trên máy này? Link vẫn hoạt động bình thường.")) { save([]); renderHist(); } };
 addEventListener("offline", () => toast("Bạn đã mất kết nối mạng", true));
 addEventListener("online", () => toast("Đã có mạng trở lại"));
+// Cloudflare Turnstile: chỉ nạp khi có site key; widget "interaction-only" thường chạy ngầm, không hiện
+const SITE_KEY = ((document.querySelector('meta[name="turnstile-sitekey"]') || {}).content || "").trim();
+let tsToken = "", tsWidget = null;
+const tsReset = () => { tsToken = ""; try { if (tsWidget !== null) turnstile.reset(tsWidget); } catch {} };
+if (SITE_KEY) {
+  window.onTurnstileLoad = () => {
+    tsWidget = turnstile.render("#cf", { sitekey: SITE_KEY, theme: "dark", appearance: "interaction-only",
+      callback: (t) => (tsToken = t), "expired-callback": () => (tsToken = ""), "error-callback": () => (tsToken = "") });
+  };
+  document.head.append(h("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit", async: true, defer: true }));
+}
 renderHist();
 document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 </script>

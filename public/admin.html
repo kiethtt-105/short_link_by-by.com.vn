@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=3">
+<link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body class="admin">
 <header class="top">
@@ -120,13 +120,21 @@ async function loadLinks() {
     cp.onclick = async () => { try { await navigator.clipboard.writeText(location.origin + "/" + l.code); toast("Đã sao chép link"); } catch { toast("Không sao chép được", true); } };
     const det = h("button", { className: "b sm", textContent: "Chi tiết" });
     det.onclick = async () => { try { showDetail(l, await api("/api/stats?code=" + encodeURIComponent(l.code))); } catch (e) { toast(e.message, true); } };
+    const lock = h("button", { className: "b sm", textContent: l.disabled ? "Mở khoá" : "Khoá" });
+    lock.onclick = async () => {
+      try {
+        await api("/api/links?code=" + encodeURIComponent(l.code), { method: "PATCH", body: JSON.stringify({ disabled: !l.disabled }) });
+        toast(l.disabled ? "Đã mở khoá link" : "Đã khoá link"); loadLinks();
+      } catch (e) { toast(e.message, true); }
+    };
     const del = h("button", { className: "b sm danger", textContent: "Xoá" });
     del.onclick = async () => {
       if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
       try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); toast("Đã xoá link"); loadLinks(); } catch (e) { toast(e.message, true); }
     };
-    return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code })),
-      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, del));
+    return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
+      ...(l.disabled ? [" ", h("span", { className: "chip r", textContent: "Đã khoá" })] : [])),
+      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, lock, del));
   }));
 }
 
@@ -134,7 +142,8 @@ async function loadLinks() {
 const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lượt quét QR", bot_click: "Bot / xem trước link", qr_view: "Xem mã QR", stats_view: "Xem thống kê",
   not_found: "Link không tồn tại", blocked_domain: "Tên miền bị chặn", rate_limited: "Vượt giới hạn tạo link",
   create_failed: "Tạo link thất bại", auth_failed: "API key không hợp lệ", qr_failed: "Tạo mã QR thất bại",
-  link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai" };
+  link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai",
+  link_disable: "Khoá link", link_enable: "Mở khoá link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
 let logRows = [];
 function renderLogs() {
