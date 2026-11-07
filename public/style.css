@@ -11,8 +11,8 @@ button{cursor:pointer}
 [hidden]{display:none!important}
 
 /* ===== Trang chủ (body.home) ===== */
-.home{--chip-bg:#efe6ff;--chip-ink:#6d28d9;font-size:16px;line-height:1.55;background:linear-gradient(180deg,#dcebff 0,#f1f7ff 560px,var(--paper) 100%)}
-@media(prefers-color-scheme:dark){.home{--chip-bg:#2a2150;--chip-ink:#c4b5fd;background:linear-gradient(180deg,#10234a 0,var(--paper) 560px)}}
+.home,.admin{--chip-bg:#efe6ff;--chip-ink:#6d28d9;font-size:16px;line-height:1.55;background:linear-gradient(180deg,#dcebff 0,#f1f7ff 560px,var(--paper) 100%)}
+@media(prefers-color-scheme:dark){.home,.admin{--chip-bg:#2a2150;--chip-ink:#c4b5fd;background:linear-gradient(180deg,#10234a 0,var(--paper) 560px)}}
 .top,.hero,.features,.recent{max-width:1120px;margin:0 auto;padding-left:20px;padding-right:20px}
 .top{display:flex;align-items:center;justify-content:space-between;padding-top:18px;padding-bottom:18px}
 .brand{font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--blue);text-decoration:none}
@@ -56,29 +56,35 @@ button{cursor:pointer}
 .home li button{background:none;text-decoration:underline;padding:0;grid-row:1/3;grid-column:2}
 .empty{color:var(--muted)}
 .foot{text-align:center;color:var(--muted);padding:40px 20px 32px;font-size:14px}
+.foot a{color:inherit;font-weight:500;text-decoration:none}
+.foot a:hover{color:var(--blue)}
 
 /* ===== Trang quản trị (body.admin) ===== */
-.admin main{padding:40px 20px 64px}
-.admin h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
-.admin input,.admin select,.admin textarea,.admin button{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
-.primary{background:var(--blue)!important;color:#fff!important;border:0!important}
-.admin nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:20px 0}
-.admin nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:10px 16px}
-.admin nav button[aria-selected=true]{border-color:var(--blue);font-weight:500}
-.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-table{border-collapse:collapse;width:100%;min-width:640px}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.admin main{max-width:1120px;margin:0 auto;padding:8px 20px 24px}
+.admin h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:8px 0 6px}
+.admin input,.admin select,.admin textarea,.admin button{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:10px 18px}
+.admin textarea{border-radius:16px;width:100%;min-height:80px}
+.primary{background:linear-gradient(135deg,#2b59ff,#5b7bff)!important;color:#fff!important;border:0!important}
+.admin #login{display:flex;gap:8px;max-width:460px;margin-top:20px;background:var(--card);border-radius:999px;padding:6px;box-shadow:0 12px 32px rgba(43,89,255,.16)}
+.admin #login input{flex:1;border:0;background:transparent;outline:0;min-width:0}
+.admin #login:focus-within{outline:3px solid var(--blue);outline-offset:2px}
+#loginMsg{margin:10px 6px;min-height:1.5em}
+.admin nav{display:flex;gap:4px;background:var(--card);padding:5px;border-radius:999px;width:max-content;max-width:100%;overflow-x:auto;margin:22px 0 18px;box-shadow:0 6px 20px rgba(14,26,43,.06)}
+.admin nav button{border:0;background:none;padding:9px 22px;font-weight:500;white-space:nowrap}
+.admin nav button[aria-selected=true]{background:linear-gradient(135deg,#2b59ff,#5b7bff);color:#fff}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.wrap{overflow-x:auto;border-radius:20px;background:var(--card);box-shadow:0 6px 20px rgba(14,26,43,.06)}
+table{border-collapse:collapse;width:100%;min-width:680px;font-size:14px}
+th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
 th{color:var(--muted);font-weight:500}
 td.u{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-td a{color:var(--blue)}
+td a{color:var(--blue);font-weight:500;text-decoration:none}
 .del{color:var(--bad)}
-.field{margin-bottom:16px}
-.field label{font-weight:500;display:block;margin-bottom:4px}
+.field{margin-bottom:14px;background:var(--card);padding:16px 20px;border-radius:18px;box-shadow:0 4px 14px rgba(14,26,43,.05)}
+.field label{font-weight:500;display:block;margin-bottom:8px}
 .field .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-start}
-.admin input[type=color]{padding:2px;width:70px;height:40px}
-.admin input[type=number],.admin select{width:150px}
-.admin textarea{width:100%;min-height:70px}
-.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line)}
-#login{display:flex;gap:8px;max-width:420px;margin-top:20px}
-#login input{flex:1}
+.admin input[type=color]{padding:2px;width:70px;height:40px;border-radius:12px}
+.admin input[type=number]{width:150px}
+.admin select{width:auto;min-width:220px}
+.badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--chip-bg);color:var(--chip-ink)}
