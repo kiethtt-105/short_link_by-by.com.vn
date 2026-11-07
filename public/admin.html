@@ -4,124 +4,166 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Cài đặt</title>
+<title>Quản trị</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;800&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-  body { max-width: 640px; margin: 8vh auto; padding: 0 16px; }
-  form { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
-  label { font-weight: 600; display: block; margin-bottom: 4px; }
-  input, select, textarea, button { padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #8886; box-sizing: border-box; }
-  input[type=color] { padding: 2px; height: 42px; width: 80px; }
-  input[type=number], select { width: 160px; }
-  textarea { width: 100%; min-height: 70px; font-family: inherit; }
-  button.primary { background: #2563eb; color: #fff; border: 0; cursor: pointer; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .hint { font-size: 13px; opacity: .7; margin-top: 2px; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #8883; }
-  .ok { color: #16a34a; } .err { color: #dc2626; }
-  [hidden] { display: none !important; }
+:root{--ink:#0e1a2b;--paper:#f3f6fb;--card:#fff;--line:#d9e0ec;--blue:#2b59ff;--ok:#0f9d6e;--bad:#d92d20;--muted:#5b6b82;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--ink:#e8eefc;--paper:#0b1220;--card:#121b2e;--line:#2a3a5c;--blue:#7b97ff;--ok:#34d399;--bad:#f87171;--muted:#93a3bf}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:40px 20px 64px}
+h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+input,select,textarea,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+button{cursor:pointer}
+.primary{background:var(--blue);color:#fff;border:0}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.muted{color:var(--muted)} .err{color:var(--bad)} .ok{color:var(--ok)}
+[hidden]{display:none!important}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:20px 0}
+nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:10px 16px}
+nav button[aria-selected=true]{border-color:var(--blue);font-weight:500}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500}
+td.u{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td a{color:var(--blue)}
+.del{color:var(--bad)}
+.field{margin-bottom:16px} .field label{font-weight:500;display:block;margin-bottom:4px}
+.field .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=color]{padding:2px;width:70px;height:40px} input[type=number],select{width:150px} textarea{width:100%;min-height:70px}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line)}
+#login{display:flex;gap:8px;max-width:420px;margin-top:20px}
+#login input{flex:1}
 </style>
 </head>
 <body>
-<h1>Cài đặt</h1>
-<p class="hint">Các cài đặt dưới đây không nhạy cảm và lưu trong database. Cài đặt quan trọng (khoá, kết nối) chỉ đặt ở biến môi trường Vercel.</p>
+<main>
+  <h1>Quản trị</h1>
+  <p class="muted">Xem link, nhật ký thao tác và chỉnh cài đặt. Cần mật khẩu ADMIN_KEY.</p>
+  <form id="login">
+    <input id="pass" type="password" placeholder="Mật khẩu quản trị" autocomplete="current-password" aria-label="Mật khẩu quản trị" required>
+    <button class="primary">Mở khoá</button>
+  </form>
+  <div id="loginMsg" class="err" role="alert"></div>
 
-<form id="login">
-  <input id="pass" type="password" placeholder="Mật khẩu quản trị (ADMIN_KEY)" autocomplete="current-password" required>
-  <button class="primary">Mở khoá</button>
-  <div id="loginMsg" class="err"></div>
-</form>
+  <div id="app" hidden>
+    <nav role="tablist">
+      <button role="tab" data-tab="links" aria-selected="true">Link</button>
+      <button role="tab" data-tab="logs" aria-selected="false">Nhật ký</button>
+      <button role="tab" data-tab="settings" aria-selected="false">Cài đặt</button>
+    </nav>
 
-<form id="settings" hidden>
-  <div id="fields"></div>
-  <div class="row">
-    <button class="primary">Lưu thay đổi</button>
-    <span id="msg"></span>
+    <section id="links">
+      <div class="bar"><input id="q" placeholder="Tìm theo mã hoặc link gốc" aria-label="Tìm link"><button id="qgo">Tìm</button><span id="sum" class="muted"></span></div>
+      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th>Bấm</th><th>Quét QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
+    </section>
+
+    <section id="logs" hidden>
+      <div class="bar"><select id="act" aria-label="Lọc theo thao tác"></select><button id="lgo">Tải lại</button><button id="csv">Tải CSV</button></div>
+      <div class="wrap"><table><thead><tr><th>Lúc</th><th>Thao tác</th><th>Mã</th><th>IP</th><th>Mã trạng thái</th><th>Chi tiết</th></tr></thead><tbody id="gbody"></tbody></table></div>
+    </section>
+
+    <section id="settings" hidden>
+      <form id="sf"><div id="fields"></div><div class="bar"><button class="primary">Lưu thay đổi</button><span id="msg"></span></div></form>
+    </section>
   </div>
-</form>
-
+</main>
 <script>
+const $ = (s) => document.querySelector(s);
+const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
 let pass = "";
-let current = {};      // giá trị đang hiển thị từ server
-const resetKeys = new Set();
-const el = (tag, props = {}, ...kids) => {
-  const n = Object.assign(document.createElement(tag), props);
-  n.append(...kids);
-  return n;
+async function raw(path, opt = {}) {
+  const r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", "x-admin-key": pass } });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi"); }
+  return r;
+}
+const api = async (path, opt) => (await raw(path, opt)).json();
+const fmt = (t) => new Date(t).toLocaleString("vi-VN");
+const cell = (v, cls) => h("td", { textContent: v ?? "", className: cls || "", title: v ?? "" });
+const empty = (tb, n, text) => tb.replaceChildren(h("tr", {}, h("td", { colSpan: n, className: "muted", textContent: text })));
+
+/* Link */
+async function loadLinks() {
+  const d = await api("/api/links?q=" + encodeURIComponent($("#q").value));
+  $("#sum").textContent = `${d.total} link, ${d.clicks} lượt bấm, ${d.scans} lượt quét QR`;
+  const tb = $("#lbody");
+  if (!d.links.length) return empty(tb, 6, "Không có link nào.");
+  tb.replaceChildren(...d.links.map((l) => {
+    const del = h("button", { className: "del", textContent: "Xoá" });
+    del.onclick = async () => {
+      if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
+      try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); loadLinks(); } catch (e) { alert(e.message); }
+    };
+    return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code })),
+      cell(l.url, "u"), cell(l.clicks), cell(l.scans), cell(fmt(l.created_at)), h("td", {}, del));
+  }));
+}
+$("#qgo").onclick = loadLinks;
+$("#q").addEventListener("keydown", (e) => e.key === "Enter" && loadLinks());
+
+/* Nhật ký */
+const ACTIONS = ["", "create", "click", "scan", "qr_view", "not_found", "blocked_domain", "rate_limited", "create_failed", "link_delete", "settings_update", "admin_auth_failed"];
+$("#act").append(...ACTIONS.map((a) => h("option", { value: a, textContent: a || "Tất cả thao tác" })));
+async function loadLogs() {
+  const a = $("#act").value, d = await api("/api/logs?limit=100" + (a ? "&action=" + a : ""));
+  const tb = $("#gbody");
+  if (!d.logs.length) return empty(tb, 6, "Chưa có thao tác nào.");
+  tb.replaceChildren(...d.logs.map((x) => h("tr", {}, cell(fmt(x.ts)), cell(x.action), cell(x.code), cell(x.ip), cell(x.status), cell(x.detail, "u"))));
+}
+$("#lgo").onclick = loadLogs; $("#act").onchange = loadLogs;
+$("#csv").onclick = async () => {
+  try {
+    const a = $("#act").value, r = await raw("/api/logs?format=csv&limit=5000" + (a ? "&action=" + a : ""));
+    const url = URL.createObjectURL(await r.blob());
+    h("a", { href: url, download: "logs.csv" }).click(); URL.revokeObjectURL(url);
+  } catch (e) { alert(e.message); }
 };
 
-async function api(method, body) {
-  const r = await fetch("/api/settings", {
-    method,
-    headers: { "Content-Type": "application/json", "x-admin-key": pass },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi");
-  return d;
-}
-
-const SOURCE = { db: "đã chỉnh ở đây", env: "từ biến Vercel", default: "mặc định" };
-
-function render(settings) {
-  const box = document.getElementById("fields");
-  box.replaceChildren();
-  current = {}; resetKeys.clear();
-  for (const [key, s] of Object.entries(settings)) {
-    current[key] = s.value;
-    let input;
-    if (s.type === "enum") {
-      input = el("select", { id: key });
-      for (const o of s.options) input.append(el("option", { value: o, textContent: o }));
-    } else if (s.type === "text") {
-      input = el("textarea", { id: key });
-    } else if (s.type === "int") {
-      input = el("input", { id: key, type: "number", min: s.min, max: s.max });
-    } else {
-      input = el("input", { id: key, type: "color" });
-    }
-    input.value = s.value;
-    const badge = el("span", { className: "badge", textContent: SOURCE[s.source] });
-    const resetBtn = el("button", { type: "button", textContent: "Đặt lại", title: "Bỏ giá trị đã chỉnh, quay về biến Vercel hoặc mặc định" });
-    resetBtn.onclick = () => {
-      resetKeys.add(key); input.value = s.default;
-      badge.textContent = "sẽ đặt lại khi lưu";
-    };
-    input.addEventListener("input", () => resetKeys.delete(key));
-    const wrap = el("div", {}, el("label", { htmlFor: key, textContent: s.label }),
-      el("div", { className: "row" }, input, badge, resetBtn));
-    if (s.hint) wrap.append(el("div", { className: "hint", textContent: s.hint }));
-    box.append(wrap);
+/* Cài đặt */
+const SRC = { db: "đã chỉnh ở đây", env: "từ biến Vercel", default: "mặc định" };
+let current = {}; const resetKeys = new Set();
+function renderSettings(s) {
+  current = {}; resetKeys.clear(); $("#fields").replaceChildren();
+  for (const [k, v] of Object.entries(s)) {
+    current[k] = v.value;
+    const input = v.type === "enum" ? h("select", { id: k }, ...v.options.map((o) => h("option", { value: o, textContent: o })))
+      : v.type === "text" ? h("textarea", { id: k }) : h("input", { id: k, type: v.type === "int" ? "number" : "color", min: v.min, max: v.max });
+    input.value = v.value;
+    const badge = h("span", { className: "badge", textContent: SRC[v.source] });
+    const rb = h("button", { type: "button", textContent: "Đặt lại" });
+    rb.onclick = () => { resetKeys.add(k); input.value = v.default; badge.textContent = "sẽ đặt lại khi lưu"; };
+    input.addEventListener("input", () => resetKeys.delete(k));
+    $("#fields").append(h("div", { className: "field" }, h("label", { htmlFor: k, textContent: v.label }),
+      h("div", { className: "row" }, input, badge, rb), v.hint ? h("div", { className: "muted", textContent: v.hint }) : ""));
   }
 }
-
-document.getElementById("login").addEventListener("submit", async (e) => {
+$("#sf").addEventListener("submit", async (e) => {
   e.preventDefault();
-  pass = document.getElementById("pass").value;
-  const msg = document.getElementById("loginMsg");
-  msg.textContent = "";
-  try {
-    const d = await api("GET");
-    render(d.settings);
-    document.getElementById("login").hidden = true;
-    document.getElementById("settings").hidden = false;
-  } catch (err) { msg.textContent = err.message; pass = ""; }
+  const patch = {};
+  for (const k of Object.keys(current)) {
+    if (resetKeys.has(k)) patch[k] = null; else if ($("#" + k).value !== current[k]) patch[k] = $("#" + k).value;
+  }
+  const msg = $("#msg");
+  if (!Object.keys(patch).length) { msg.className = "muted"; msg.textContent = "Không có thay đổi"; return; }
+  try { renderSettings((await api("/api/settings", { method: "PUT", body: JSON.stringify(patch) })).settings); msg.className = "ok"; msg.textContent = "Đã lưu"; }
+  catch (x) { msg.className = "err"; msg.textContent = x.message; }
 });
 
-document.getElementById("settings").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const msg = document.getElementById("msg");
-  const patch = {};
-  for (const key of Object.keys(current)) {
-    if (resetKeys.has(key)) patch[key] = null;
-    else if (document.getElementById(key).value !== current[key]) patch[key] = document.getElementById(key).value;
-  }
-  if (!Object.keys(patch).length) { msg.className = ""; msg.textContent = "Không có thay đổi"; return; }
-  try {
-    const d = await api("PUT", patch);
-    render(d.settings);
-    msg.className = "ok"; msg.textContent = "Đã lưu";
-  } catch (err) { msg.className = "err"; msg.textContent = err.message; }
+/* Tab và đăng nhập */
+const loaders = { links: loadLinks, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", async () => {
+  document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-selected", x === b));
+  for (const id of Object.keys(loaders)) $("#" + id).hidden = id !== b.dataset.tab;
+  try { await loaders[b.dataset.tab](); } catch (e) { alert(e.message); }
+}));
+$("#login").addEventListener("submit", async (e) => {
+  e.preventDefault(); pass = $("#pass").value; $("#loginMsg").textContent = "";
+  try { await loadLinks(); $("#login").hidden = true; $("#app").hidden = false; }
+  catch (x) { $("#loginMsg").textContent = x.message; pass = ""; }
 });
 </script>
 </body>

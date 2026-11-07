@@ -27,3 +27,13 @@ function doPost(e) {
   }
   return ContentService.createTextOutput("ok");
 }
+
+// Chạy THỬ trong trình soạn thảo: chọn hàm testLog ở ô cạnh nút "Chạy" (đừng chạy doPost trực tiếp,
+// vì doPost chỉ chạy khi có request từ Vercel). Thành công thì tab "logs" có 1 dòng "test".
+function testLog() {
+  const e = { postData: { contents: JSON.stringify({
+    token: PropertiesService.getScriptProperties().getProperty("TOKEN"),
+    row: ["test", "ping", "", "", "", "", "200", "hello"],
+  }) } };
+  Logger.log(doPost(e).getContent());
+}
