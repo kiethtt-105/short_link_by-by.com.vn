@@ -38,10 +38,16 @@
         <button id="go" class="go">Rút gọn</button>
       </form>
       <div id="pv" class="pv" aria-live="polite"></div>
-      <details><summary>Đặt tên riêng cho link</summary>
+      <details><summary>Tên riêng và tuỳ chọn nâng cao</summary>
         <div class="alias"><span class="pre"><span class="host"></span>/</span>
           <input id="alias" autocomplete="off" placeholder="khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
           <button id="rnd" class="linkbtn" type="button">Gợi ý</button></div>
+        <small id="ac" class="ac" aria-live="polite"></small>
+        <div class="adv">
+          <label>Hết hạn<select id="exp"><option value="">Không hết hạn</option><option value="1">Sau 1 giờ</option><option value="24">Sau 1 ngày</option><option value="168">Sau 7 ngày</option><option value="720">Sau 30 ngày</option></select></label>
+          <label>Giới hạn lượt truy cập<input id="maxc" type="number" min="1" max="10000000" inputmode="numeric" placeholder="Không giới hạn"></label>
+          <label>Mật khẩu mở link<input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt"></label>
+        </div>
       </details>
       <div id="cf"></div>
       <div id="err" class="err" role="alert"></div>
@@ -104,6 +110,12 @@ function copyBtn(text) {
   };
   return b;
 }
+// Màu QR do người dùng chọn, nhớ trong trình duyệt; gắn vào URL ảnh (?fg=&bg=)
+const QS = "qr_style", QDEF = { fg: "#000000", bg: "#ffffff" };
+const qstyle = () => { try { return { ...QDEF, ...JSON.parse(localStorage.getItem(QS)) }; } catch { return { ...QDEF }; } };
+const styled = (d) => { const s = qstyle(); return { ...d, bg: s.bg, qr_url: d.qr_url + "&fg=" + s.fg.slice(1) + "&bg=" + s.bg.slice(1) }; };
+const lum = (x) => { const c = [1, 3, 5].map((i) => parseInt(x.substr(i, 2), 16) / 255).map((v) => (v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+const contrast = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
 const pngUrl = (d) => d.qr_url + "&format=png";
 async function copyQR(d) {
   try { const b = await (await fetch(pngUrl(d))).blob();
@@ -143,7 +155,7 @@ function zoomQR(d) {
   }
   dlg.replaceChildren(
     h("p", { className: "cap", textContent: "Quét mã để mở link" }),
-    h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url }),
+    h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, style: "background:" + (d.bg || "#fff") }),
     h("p", { className: "short", textContent: d.short_url }),
     h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
@@ -151,17 +163,25 @@ function zoomQR(d) {
       h("button", { className: "btn", type: "button", textContent: "Đóng", onclick: () => dlg.close() })));
   dlg.showModal();
 }
-function showResult(d) {
+function showResult(d0) {
+  const d = styled(d0), s = qstyle();
   const p = $("#panel"); p.className = "panel on";
-  const img = h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, width: 220, height: 220 });
+  const img = h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, width: 220, height: 220, style: "background:" + d.bg });
   const qb = h("button", { className: "qrb", type: "button", title: "Bấm để phóng to", onclick: () => zoomQR(d) }, img);
   img.onerror = () => qb.replaceWith(h("p", { className: "err", textContent: "Chưa tải được mã QR. Link ngắn vẫn dùng được." }));
+  const store = (n) => { try { n ? localStorage.setItem(QS, JSON.stringify(n)) : localStorage.removeItem(QS); } catch {} };
+  const pick = (key, label) => h("label", { className: "clr" }, label, h("input", { type: "color", value: s[key], onchange: (e) => {
+    const n = { ...s, [key]: e.target.value }; store(n);
+    if (contrast(n.fg, n.bg) < 3 || lum(n.fg) > lum(n.bg)) toast("Mã nên tối hơn nền và đủ tương phản, nếu không khó quét", true);
+    showResult(d0); } }));
+  const colorRow = h("div", { className: "row clrs" }, pick("fg", "Màu mã"), pick("bg", "Màu nền"),
+    h("button", { className: "linkbtn", type: "button", textContent: "Mặc định", onclick: () => { store(null); showResult(d0); } }));
   p.replaceChildren(qb,
     h("a", { className: "short", href: d.short_url, target: "_blank", rel: "noopener", textContent: d.short_url }),
     h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
       h("button", { className: "btn ghost", type: "button", textContent: "Phóng to", onclick: () => zoomQR(d) }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
-      h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" })));
+      h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" })), colorRow);
   if (matchMedia("(max-width:820px)").matches) p.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 // Đã đăng nhập /admin trên trình duyệt này thì hiện thêm link của toàn hệ thống (song song với link của bạn)
@@ -236,6 +256,9 @@ $("#f").addEventListener("submit", async (e) => {
     $("#alias").closest("details").open = true;
     return fail("Tên riêng gồm 3-32 ký tự chữ, số, _ hoặc -.", $("#alias"));
   }
+  const maxc = $("#maxc").value.trim(), pw = $("#pw").value;
+  if (maxc && !/^[1-9]\d{0,7}$/.test(maxc)) { $("#maxc").closest("details").open = true; return fail("Giới hạn lượt phải là số nguyên từ 1 đến 10.000.000.", $("#maxc")); }
+  if (pw && (pw.length < 4 || pw.length > 64)) { $("#pw").closest("details").open = true; return fail("Mật khẩu link gồm 4-64 ký tự.", $("#pw")); }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
   go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
   try {
@@ -243,9 +266,10 @@ $("#f").addEventListener("submit", async (e) => {
     if (SITE_KEY && !tsToken) throw new Error("Chưa xác minh được chống spam. Hãy bấm Rút gọn lần nữa hoặc tải lại trang.");
     go.textContent = "Đang tạo";
     const d = await call("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, alias: alias || undefined, turnstile: tsToken || undefined }) });
+      body: JSON.stringify({ url, alias: alias || undefined, turnstile: tsToken || undefined,
+        expires_in: $("#exp").value || undefined, max_clicks: maxc || undefined, password: pw || undefined }) });
     showResult(d); save([{ ...d, t: Date.now() }, ...load().filter((x) => x.code !== d.code)]); renderHist();
-    $("#url").value = ""; $("#alias").value = ""; $("#pv").textContent = "";
+    $("#url").value = ""; $("#alias").value = ""; $("#pw").value = ""; $("#maxc").value = ""; $("#exp").value = ""; $("#ac").textContent = ""; $("#pv").textContent = "";
     copy(d.short_url).then((ok) => toast(ok ? "Đã tạo và sao chép link" : "Đã tạo link ngắn"));
   } catch (x) { showIdle(); fail(x.message); }
   tsReset(); // token Turnstile chỉ dùng được một lần
@@ -258,7 +282,21 @@ $("#url").addEventListener("input", () => {
   const raw = $("#url").value.trim(), n = normalize(raw);
   $("#pv").textContent = raw && n !== raw ? "Sẽ rút gọn: " + n : "";
 });
-$("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").focus(); };
+$("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").dispatchEvent(new Event("input")); $("#alias").focus(); };
+// Kiểm tra tên riêng còn trống không (gọi sau khi ngừng gõ 400ms)
+let aliasTimer;
+$("#alias").addEventListener("input", () => {
+  const a = $("#alias").value.trim(), out = $("#ac"); clearTimeout(aliasTimer); out.className = "ac"; out.textContent = "";
+  if (!a) return;
+  if (!/^[A-Za-z0-9_-]{3,32}$/.test(a)) { out.className = "ac err"; out.textContent = "Cần 3-32 ký tự chữ, số, _ hoặc -"; return; }
+  aliasTimer = setTimeout(async () => {
+    try {
+      const d = await call("/api/index?op=check&alias=" + encodeURIComponent(a));
+      if ($("#alias").value.trim() !== a) return;
+      out.className = "ac " + (d.available ? "ok" : "err"); out.textContent = d.available ? "✓ Dùng được" : "✗ " + d.reason;
+    } catch {}
+  }, 400);
+});
 if (navigator.clipboard && navigator.clipboard.readText) {
   const pb = $("#paste"); pb.hidden = false;
   pb.onclick = async () => {

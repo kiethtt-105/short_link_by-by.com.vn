@@ -1,7 +1,7 @@
 // Một function duy nhất cho toàn bộ API. vercel.json rewrite các đường dẫn cũ về đây:
 //   /api/shorten /api/stats /api/qr /api/links /api/logs /api/settings  → ?op=<tên>
 //   /<code>                                                              → ?op=r&code=<code>
-import { randomInt } from "node:crypto";
+import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import {
   sql, init, log, logOp, clientInfo, baseUrl, same, purgeLogs,
@@ -21,7 +21,30 @@ const csvCell = (v) => {
   return `"${s.replaceAll('"', '""')}"`;
 };
 
+const hashPw = (pw, salt) => scryptSync(pw, salt, 32);
+const checkPw = (pw, l) => {
+  const a = hashPw(pw, l.pass_salt), b = Buffer.from(l.pass_hash, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+// Số nguyên trong [lo, hi]; rỗng → null; sai → NaN
+const intIn = (v, lo, hi) => {
+  if (v == null || v === "") return null;
+  const n = Number(v); return Number.isInteger(n) && n >= lo && n <= hi ? n : NaN;
+};
+
 /* ───────── Công khai ───────── */
+
+// GET /api/index?op=check&alias=abc → {available, reason?}  (kiểm tra tên riêng khi gõ)
+async function check(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  const alias = String(req.query.alias || "");
+  if (!ALIAS_RE.test(alias)) return res.json({ available: false, reason: "Cần 3-32 ký tự chữ, số, _ hoặc -" });
+  if (RESERVED.has(alias.toLowerCase())) return res.json({ available: false, reason: "Từ này được dành riêng" });
+  await init();
+  if (await hit("check", clientInfo(req).ip, 60)) return res.status(429).json({ error: "Kiểm tra quá nhanh, thử lại sau" });
+  const r = await sql`SELECT 1 FROM links WHERE code = ${alias}`;
+  res.json(r.length ? { available: false, reason: "Đã có người dùng" } : { available: true });
+}
 
 // POST /api/shorten {url, alias?, turnstile?}
 async function shorten(req, res) {
@@ -65,6 +88,11 @@ async function shorten(req, res) {
     return fail(400, "Alias gồm 3-32 ký tự chữ, số, _ hoặc - (không dùng từ dành riêng)");
   }
 
+  const hours = intIn(body.expires_in, 1, 8760), maxc = intIn(body.max_clicks, 1, 10000000);
+  if (Number.isNaN(hours) || Number.isNaN(maxc)) return fail(400, "Thời hạn hoặc số lượt tối đa không hợp lệ");
+  const pw = typeof body.password === "string" ? body.password : "";
+  if (pw && (pw.length < 4 || pw.length > 64)) return fail(400, "Mật khẩu link gồm 4-64 ký tự");
+
   // Xác thực. Header x-sec-fetch-site do client tự đặt được nên KHÔNG còn dùng để miễn key:
   //  • có x-api-key đúng → qua (gọi từ máy chủ / ứng dụng khác)
   //  • không có key → cần token Turnstile (form trên web). Chưa cấu hình Turnstile thì dùng cách cũ (same-origin) để không gãy hệ thống.
@@ -91,15 +119,20 @@ async function shorten(req, res) {
   const threat = await unsafeThreat(url);
   if (threat) return fail(400, "Link này bị đánh dấu là không an toàn nên không thể rút gọn", "unsafe_url");
 
+  const expiresAt = hours ? new Date(Date.now() + hours * 3600e3).toISOString() : null;
+  const salt = pw ? randomBytes(16).toString("hex") : null;
+  const passHash = pw ? hashPw(pw, salt).toString("hex") : null;
   let code = alias || null;
   if (code) {
-    const r = await sql`INSERT INTO links(code, url, created_ip) VALUES (${code}, ${url}, ${ip})
+    const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt)
+                        VALUES (${code}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt})
                         ON CONFLICT DO NOTHING RETURNING code`;
     if (!r.length) return fail(409, "Alias đã tồn tại");
   } else {
     for (let i = 0; i < 10 && !code; i++) {
       const c = newCode(cfg.code_length);
-      const r = await sql`INSERT INTO links(code, url, created_ip) VALUES (${c}, ${url}, ${ip})
+      const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt)
+                          VALUES (${c}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt})
                           ON CONFLICT DO NOTHING RETURNING code`;
       if (r.length) code = c;
     }
@@ -108,7 +141,8 @@ async function shorten(req, res) {
 
   await logOp(req, { action: "create", code, status: 201, detail: url });
   const base = baseUrl(req);
-  res.status(201).json({ code, short_url: `${base}/${code}`, qr_url: `${base}/api/qr?code=${code}`, url });
+  res.status(201).json({ code, short_url: `${base}/${code}`, qr_url: `${base}/api/qr?code=${code}`, url,
+    expires_at: expiresAt, max_clicks: maxc, protected: !!pw });
 }
 
 // GET /api/stats?code=abc
@@ -170,11 +204,12 @@ async function qr(req, res) {
   const cfg = await getSettings();
   const fmt = ["png", "svg"].includes(req.query.format) ? req.query.format : cfg.qr_format;
   const target = `${baseUrl(req)}/${code}?src=qr`; // ?src=qr để phân biệt lượt quét với lượt bấm
+  const hex = (v, def) => (/^[0-9a-fA-F]{6}$/.test(String(v || "")) ? "#" + v : def); // ?fg=000000&bg=ffffff
   const opts = {
     width: cfg.qr_size,
     margin: cfg.qr_margin,
     errorCorrectionLevel: cfg.qr_error_level,
-    color: { dark: cfg.qr_foreground, light: cfg.qr_background },
+    color: { dark: hex(req.query.fg, cfg.qr_foreground), light: hex(req.query.bg, cfg.qr_background) },
   };
 
   try {
@@ -196,46 +231,57 @@ async function qr(req, res) {
 }
 
 const page = (title, big, msg) => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#06050f;color:#eaf2ff;font:16px system-ui,sans-serif;text-align:center">
-<main><h1 style="font-size:64px;margin:0;color:#22f3ff;text-shadow:0 0 24px #22f3ff">${big}</h1><p>${msg}</p>
-<p><a href="/" style="color:#ff2bd6">Tạo link mới</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#22f3ff">Design by Tuankiet</a></p></main></body></html>`;
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#eaf2ff;font:16px system-ui,sans-serif;text-align:center">
+<main><h1 style="font-size:64px;margin:0;color:#5b8bff;text-shadow:0 0 24px #5b8bff">${big}</h1><p>${msg}</p>
+<p><a href="/" style="color:#ff2bd6">Tạo link mới</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#5b8bff">Design by Tuankiet</a></p></main></body></html>`;
 const notFoundPage = () => page("Link không tồn tại", "404", "Link này không tồn tại hoặc đã bị xoá.");
+const expiredPage = () => page("Link đã hết hạn", "410", "Link này đã hết hạn hoặc hết lượt truy cập.");
+const passPage = (msg = "") => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link được bảo vệ</title>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#e8ebf5;font:16px system-ui,sans-serif;text-align:center">
+<main style="width:min(360px,90vw)"><h1 style="font-size:22px">Link được bảo vệ bằng mật khẩu</h1>
+<form method="post" action="" style="display:grid;gap:10px"><input type="password" name="password" required autofocus autocomplete="off" placeholder="Nhập mật khẩu" style="height:44px;padding:0 12px;border-radius:10px;border:1px solid #333a55;background:#0e1018;color:inherit;font:inherit">
+<button style="height:44px;border:0;border-radius:10px;background:#5b8bff;color:#06102e;font:600 16px system-ui;cursor:pointer">Mở link</button></form>
+<p style="color:#ff5d78;min-height:1.4em">${msg}</p></main></body></html>`;
 const disabledPage = () => page("Link đã bị khoá", "410", "Link này đã bị khoá nên không thể truy cập.");
 
-// GET /<code> — chuyển hướng + đếm lượt
+// GET /<code> — chuyển hướng + đếm lượt. Link có mật khẩu: GET hiện form, POST kiểm tra rồi chuyển hướng (303)
 async function redirect(req, res) {
   const code = String(req.query.code || "");
   await init();
   res.setHeader("Cache-Control", "no-store"); // mỗi lượt bấm đều đi qua server
+  const html = (st, p) => { res.setHeader("Content-Type", "text/html; charset=utf-8"); return res.status(st).send(p); };
 
-  // HEAD (bot xem trước, kiểm tra link) chỉ trả đích, không đếm; link bị khoá thì 410
+  const [l] = await sql`SELECT url, disabled, pass_hash, pass_salt,
+    (expires_at IS NOT NULL AND expires_at <= now()) AS expired,
+    (max_clicks IS NOT NULL AND clicks >= max_clicks) AS used_up FROM links WHERE code = ${code}`;
+
+  // HEAD (bot xem trước, kiểm tra link) chỉ trả đích, không đếm; khoá/hết hạn thì 410
   if (req.method === "HEAD") {
-    const [l] = await sql`SELECT url, disabled FROM links WHERE code = ${code}`;
     if (!l) return res.status(404).end();
-    return l.disabled ? res.status(410).end() : res.redirect(302, l.url);
+    if (l.disabled || l.expired || l.used_up) return res.status(410).end();
+    return l.pass_hash ? res.status(200).end() : res.redirect(302, l.url);
   }
+  if (!l) { log(req, { action: "not_found", code, status: 404 }); return html(404, notFoundPage()); }
+  if (l.disabled) { log(req, { action: "disabled_click", code, status: 410 }); return html(410, disabledPage()); }
+  if (l.expired || l.used_up) { log(req, { action: "expired_click", code, status: 410 }); return html(410, expiredPage()); }
 
   const fromQr = req.query.src === "qr";
-  const { is_bot } = clientInfo(req);
-  // Bot / trình xem trước link (Facebook, Slack, Zalo...) chỉ được chuyển hướng, KHÔNG cộng lượt; ghi riêng 'bot_click'
-  let rows = is_bot
-    ? await sql`SELECT url, disabled FROM links WHERE code = ${code}`
-    : await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0}
-                WHERE code = ${code} AND NOT disabled RETURNING url, disabled`;
-  // UPDATE không trúng dòng nào: hoặc link không có, hoặc link đang bị khoá → tra lại để phân biệt
-  if (!rows.length && !is_bot) rows = await sql`SELECT url, disabled FROM links WHERE code = ${code}`;
-  if (!rows.length) {
-    log(req, { action: "not_found", code, status: 404 });
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(404).send(notFoundPage());
+  const { ip, is_bot } = clientInfo(req);
+  if (l.pass_hash) {
+    if (req.method !== "POST" || is_bot) return html(200, passPage());
+    if (await hit("unlock", ip, 10)) return html(429, passPage("Thử quá nhiều lần, hãy đợi một lát."));
+    const pw = req.body && typeof req.body.password === "string" ? req.body.password.slice(0, 64) : "";
+    if (!checkPw(pw, l)) { log(req, { action: "wrong_password", code, status: 403 }); return html(403, passPage("Mật khẩu không đúng.")); }
   }
-  if (rows[0].disabled) {
-    log(req, { action: "disabled_click", code, status: 410 });
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(410).send(disabledPage());
-  }
-  log(req, { action: is_bot ? "bot_click" : fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
-  res.redirect(302, rows[0].url);
+  // Bot / trình xem trước link chỉ được chuyển hướng, KHÔNG cộng lượt; ghi riêng 'bot_click'
+  if (is_bot) { log(req, { action: "bot_click", code, status: 302, detail: l.url }); return res.redirect(302, l.url); }
+  // Cộng lượt nguyên tử, vẫn kiểm tra hết hạn/giới hạn để hai người bấm cùng lúc không vượt số lượt tối đa
+  const rows = await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${fromQr ? 1 : 0}
+    WHERE code = ${code} AND NOT disabled AND (expires_at IS NULL OR expires_at > now())
+      AND (max_clicks IS NULL OR clicks < max_clicks) RETURNING url`;
+  if (!rows.length) { log(req, { action: "expired_click", code, status: 410 }); return html(410, expiredPage()); }
+  log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: rows[0].url });
+  res.redirect(req.method === "POST" ? 303 : 302, rows[0].url);
 }
 
 /* ───────── Quản trị (cần x-admin-key) ───────── */
@@ -264,22 +310,40 @@ async function links(req, res) {
     log(req, { action: "link_delete", code, status: 200, detail: r[0].url });
     return res.json({ ok: true });
   }
-  if (req.method === "PATCH") { // khoá / mở khoá link (không mất số liệu)
+  if (req.method === "PATCH") { // khoá/mở khoá, đổi hạn, đổi giới hạn lượt, gỡ mật khẩu (không mất số liệu)
     if (auth.viaSheet) return res.status(403).json({ error: "Không đủ quyền" });
     const code = String(req.query.code || "");
     const b = req.body && typeof req.body === "object" ? req.body : {};
-    if (typeof b.disabled !== "boolean") return res.status(400).json({ error: "disabled phải là true hoặc false" });
-    const r = await sql`UPDATE links SET disabled = ${b.disabled} WHERE code = ${code} RETURNING disabled`;
+    const has = (k) => Object.hasOwn(b, k);
+    const bad = (m) => res.status(400).json({ error: m });
+    if (has("disabled") && typeof b.disabled !== "boolean") return bad("disabled phải là true hoặc false");
+    if (has("clear_password") && b.clear_password !== true) return bad("clear_password chỉ nhận true");
+    // null = bỏ hạn / bỏ giới hạn; số = đặt mới (hạn tính từ lúc này)
+    const hours = has("expires_in") ? (b.expires_in === null ? null : intIn(b.expires_in, 1, 87600)) : null;
+    const maxc = has("max_clicks") ? (b.max_clicks === null ? null : intIn(b.max_clicks, 1, 10000000)) : null;
+    if (Number.isNaN(hours) || Number.isNaN(maxc)) return bad("Thời hạn hoặc số lượt tối đa không hợp lệ");
+    if (!["disabled", "expires_in", "max_clicks", "clear_password"].some(has)) return bad("Không có gì để cập nhật");
+    const expiresAt = hours ? new Date(Date.now() + hours * 3600e3).toISOString() : null;
+    const r = await sql`UPDATE links SET
+        disabled = CASE WHEN ${has("disabled")}::boolean THEN ${b.disabled === true}::boolean ELSE disabled END,
+        expires_at = CASE WHEN ${has("expires_in")}::boolean THEN ${expiresAt}::timestamptz ELSE expires_at END,
+        max_clicks = CASE WHEN ${has("max_clicks")}::boolean THEN ${maxc}::bigint ELSE max_clicks END,
+        pass_hash = CASE WHEN ${b.clear_password === true}::boolean THEN NULL ELSE pass_hash END,
+        pass_salt = CASE WHEN ${b.clear_password === true}::boolean THEN NULL ELSE pass_salt END
+      WHERE code = ${code} RETURNING disabled, expires_at, max_clicks, (pass_hash IS NOT NULL) AS protected`;
     if (!r.length) return res.status(404).json({ error: "Không tìm thấy link" });
-    log(req, { action: b.disabled ? "link_disable" : "link_enable", code, status: 200 });
-    return res.json({ ok: true, disabled: r[0].disabled });
+    const onlyLock = has("disabled") && Object.keys(b).length === 1;
+    log(req, { action: onlyLock ? (b.disabled ? "link_disable" : "link_enable") : "link_update", code, status: 200,
+      detail: onlyLock ? "" : JSON.stringify(b) });
+    return res.json({ ok: true, ...r[0] });
   }
   if (req.method !== "GET") return res.status(405).json({ error: "Chỉ hỗ trợ GET, PATCH hoặc DELETE" });
 
   const q = String(req.query.q || "").slice(0, 100);
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), auth.viaSheet ? 20000 : 200);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
-  const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip, disabled FROM links
+  const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip, disabled, expires_at, max_clicks,
+    (pass_hash IS NOT NULL) AS protected FROM links
     WHERE (${q} = '' OR code ILIKE ${like} OR url ILIKE ${like})
     ORDER BY created_at DESC LIMIT ${limit}`;
   const [t] = await sql`SELECT count(*)::int AS total, COALESCE(sum(clicks), 0)::int AS clicks,
@@ -351,7 +415,7 @@ async function cleanup(req, res) {
   log(req, { action: "purge", status: 200, detail: `deleted ${n}` });
   res.json({ ok: true, deleted: n });
 }
-const routes = { shorten, stats, qr, r: redirect, links, logs, settings, cleanup };
+const routes = { shorten, check, stats, qr, r: redirect, links, logs, settings, cleanup };
 
 export default async function handler(req, res) {
   const op = req.query.op;

@@ -162,3 +162,11 @@ dialog pre{white-space:pre-wrap;word-break:break-all;font-size:12px;max-height:6
 .qrbig .cap{margin:0 0 12px;color:var(--mute);font-weight:500}
 .qrbig .short{margin:0}
 @media(pointer:coarse){.sm,.b,.btn{height:44px}.seg button{height:38px;padding:0 14px}.pill{height:40px}.linkbtn{padding:12px 8px;margin:-12px -8px}.home summary{padding:10px 0}}
+.ac{display:block;min-height:1.2em;margin:6px 2px 0;font-size:13px}
+.adv{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px;max-width:640px}
+.adv label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.adv :is(input,select){height:40px;padding:0 12px;background:var(--s1);border:1px solid var(--line);border-radius:var(--r);outline:0}
+.adv :is(input,select):focus{border-color:var(--c)}
+.clrs{align-items:center;margin-top:2px}
+.clr{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
+.clr input{width:36px;height:28px;padding:0;border:1px solid var(--line);border-radius:8px;background:none;cursor:pointer}

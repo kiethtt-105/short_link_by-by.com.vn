@@ -128,15 +128,51 @@ async function loadLinks() {
         toast(l.disabled ? "Đã mở khoá link" : "Đã khoá link"); loadLinks();
       } catch (e) { toast(e.message, true); }
     };
+    const edit = h("button", { className: "b sm", textContent: "Sửa" });
+    edit.onclick = () => editLink(l);
+    const chip = (c, t) => h("span", { className: "chip " + c, textContent: t });
+    const chips = [];
+    if (l.protected) chips.push(chip("w", "Mật khẩu"));
+    if (l.expires_at) { const gone = new Date(l.expires_at) < Date.now(); chips.push(chip(gone ? "r" : "c", gone ? "Đã hết hạn" : "Hết hạn " + full(l.expires_at))); }
+    if (l.max_clicks) { const left = l.max_clicks - l.clicks; chips.push(chip(left <= 0 ? "r" : "c", left <= 0 ? "Hết lượt" : `Còn ${num(left)} lượt`)); }
     const del = h("button", { className: "b sm danger", textContent: "Xoá" });
     del.onclick = async () => {
       if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
       try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); toast("Đã xoá link"); loadLinks(); } catch (e) { toast(e.message, true); }
     };
     return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
-      ...(l.disabled ? [" ", h("span", { className: "chip r", textContent: "Đã khoá" })] : [])),
-      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, lock, del));
+      ...(l.disabled ? [" ", chip("r", "Đã khoá")] : []), ...chips.flatMap((c) => [" ", c])),
+      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, edit, lock, del));
   }));
+}
+
+/* Sửa hạn / giới hạn lượt / gỡ mật khẩu */
+function editLink(l) {
+  const dlg = h("dialog", {});
+  const opt = (v, t) => h("option", { value: v, textContent: t });
+  const exp = h("select", {}, opt("keep", l.expires_at ? "Giữ nguyên (" + full(l.expires_at) + ")" : "Giữ nguyên (không hết hạn)"), opt("none", "Bỏ hạn"),
+    opt("1", "1 giờ kể từ bây giờ"), opt("24", "1 ngày"), opt("168", "7 ngày"), opt("720", "30 ngày"), opt("8760", "1 năm"));
+  const mc = h("input", { type: "number", min: 1, max: 10000000, placeholder: "Không giới hạn", value: l.max_clicks || "" });
+  const cp = h("input", { type: "checkbox" });
+  const save = h("button", { className: "b p", type: "button", textContent: "Lưu" });
+  const close = () => { dlg.close(); dlg.remove(); };
+  save.onclick = async () => {
+    const body = {};
+    if (exp.value !== "keep") body.expires_in = exp.value === "none" ? null : Number(exp.value);
+    if (mc.value.trim() !== String(l.max_clicks || "")) body.max_clicks = mc.value.trim() ? Number(mc.value) : null;
+    if (cp.checked) body.clear_password = true;
+    if (!Object.keys(body).length) return close();
+    save.disabled = true;
+    try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "PATCH", body: JSON.stringify(body) }); toast("Đã cập nhật link"); close(); loadLinks(); }
+    catch (e) { toast(e.message, true); save.disabled = false; }
+  };
+  dlg.append(h("h2", { textContent: "/" + l.code }),
+    h("div", { className: "stack" },
+      h("label", {}, "Hạn dùng", exp), h("label", {}, "Giới hạn lượt truy cập (đã dùng " + num(l.clicks) + ")", mc),
+      ...(l.protected ? [h("label", { className: "chk" }, cp, " Gỡ mật khẩu của link")] : []),
+      h("div", { className: "bar" }, save, h("button", { className: "b", type: "button", textContent: "Huỷ", onclick: close }))));
+  dlg.addEventListener("click", (e) => e.target === dlg && close());
+  document.body.append(dlg); dlg.showModal();
 }
 
 /* Nhật ký */
@@ -144,7 +180,7 @@ const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lư�
   not_found: "Link không tồn tại", blocked_domain: "Tên miền bị chặn", rate_limited: "Vượt giới hạn tạo link",
   create_failed: "Tạo link thất bại", auth_failed: "API key không hợp lệ", qr_failed: "Tạo mã QR thất bại",
   link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai",
-  link_disable: "Khoá link", link_enable: "Mở khoá link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)" };
+  link_disable: "Khoá link", link_enable: "Mở khoá link", link_update: "Sửa link", expired_click: "Bấm link hết hạn", wrong_password: "Nhập sai mật khẩu link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
 let logRows = [];
 function renderLogs() {
