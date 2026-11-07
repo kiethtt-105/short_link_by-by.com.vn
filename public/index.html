@@ -5,31 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rút gọn link và tạo mã QR</title>
 <meta name="description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
-<meta name="theme-color" content="#2b59ff">
+<meta name="theme-color" content="#06050f">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=2">
 </head>
 <body class="home">
 <header class="top">
   <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28"><span class="host">Rút gọn link</span></a>
+  <div class="links"><a class="pill" href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn <span aria-hidden="true">↗</span></a></div>
 </header>
 <main>
-  <div class="hero" id="hero">
+  <div class="hero">
     <section>
       <h1>Rút gọn link, kèm mã QR</h1>
       <p class="lead">Dán link dài để nhận link ngắn và mã QR. Lượt bấm link và lượt quét QR được đếm riêng.</p>
-      <form id="f">
-        <input id="url" type="url" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn" required>
-        <button id="go">Rút gọn</button>
+      <form id="f" novalidate>
+        <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn">
+        <button id="paste" class="linkbtn" type="button" hidden>Dán</button>
+        <button id="go" class="go">Rút gọn</button>
       </form>
       <details><summary>Đặt tên riêng cho link</summary>
-        <input id="alias" placeholder="vd: khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
+        <input id="alias" autocomplete="off" placeholder="vd: khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
       </details>
       <div id="err" class="err" role="alert"></div>
     </section>
@@ -37,12 +39,13 @@
       <p class="hint">Mã QR và link ngắn của bạn sẽ hiện ở đây.</p>
     </section>
   </div>
-  <section id="recent" class="recent">
-    <h2>Link gần đây trên máy này</h2>
+  <section class="recent">
+    <header><h2>Link gần đây trên máy này</h2><button id="clear" class="linkbtn" type="button" hidden>Xoá lịch sử</button></header>
     <ul id="hist"></ul>
   </section>
 </main>
-<footer class="foot">© <span class="host">Rút gọn link</span> · Designed by Tuan Kiett</footer>
+<footer class="foot">© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
@@ -50,46 +53,114 @@ const KEY = "short_history";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
 const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 8))); } catch {} };
 
+function toast(msg, bad) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2400);
+}
+// Gọi API: gom lỗi mạng, lỗi JSON và lỗi HTTP về một Error có thông báo tiếng Việt
+async function call(path, opt) {
+  let r;
+  try { r = await fetch(path, opt); } catch { throw new Error("Không có kết nối mạng, hãy thử lại."); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `Có lỗi xảy ra (${r.status}), hãy thử lại.`);
+  return d;
+}
+// Sao chép: thử Clipboard API, không được thì dùng textarea tạm (trình duyệt cũ, trang không HTTPS)
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  const t = h("textarea", { value: text }); t.style.cssText = "position:fixed;opacity:0";
+  document.body.append(t); t.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch {}
+  t.remove(); return ok;
+}
+// Người dùng hay dán "abc.com/x" không có https:// → tự thêm thay vì báo lỗi
+const normalize = (v) => { v = v.trim(); return v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? "https://" + v : v; };
+
 function copyBtn(text) {
   const b = h("button", { className: "btn", type: "button", textContent: "Sao chép" });
-  b.onclick = async () => { await navigator.clipboard.writeText(text); b.textContent = "Đã sao chép"; setTimeout(() => (b.textContent = "Sao chép"), 1500); };
+  b.onclick = async () => {
+    const ok = await copy(text);
+    b.textContent = ok ? "Đã sao chép" : "Chép thủ công";
+    toast(ok ? "Đã sao chép link" : "Trình duyệt chặn sao chép, hãy chép thủ công", !ok);
+    setTimeout(() => (b.textContent = "Sao chép"), 1600);
+  };
   return b;
+}
+function showLoading() {
+  const p = $("#panel"); p.className = "panel load";
+  p.replaceChildren(h("p", { className: "hint", textContent: "Đang tạo link..." }));
+}
+function showIdle() {
+  const p = $("#panel"); p.className = "panel";
+  p.replaceChildren(h("p", { className: "hint", textContent: "Mã QR và link ngắn của bạn sẽ hiện ở đây." }));
 }
 function showResult(d) {
   const p = $("#panel"); p.className = "panel on";
-  p.replaceChildren(
-    h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, width: 220, height: 220 }),
+  const img = h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, width: 220, height: 220 });
+  img.onerror = () => img.replaceWith(h("p", { className: "err", textContent: "Chưa tải được mã QR. Link ngắn vẫn dùng được." }));
+  p.replaceChildren(img,
     h("a", { className: "short", href: d.short_url, target: "_blank", rel: "noopener", textContent: d.short_url }),
     h("div", { className: "row" }, copyBtn(d.short_url),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" })));
+  if (matchMedia("(max-width:820px)").matches) p.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 function renderHist() {
-  const ul = $("#hist"), items = load(); ul.replaceChildren();
+  const ul = $("#hist"), items = load(); ul.replaceChildren(); $("#clear").hidden = !items.length;
   if (!items.length) return ul.append(h("li", { className: "empty", textContent: "Chưa có link nào. Link bạn tạo sẽ được nhớ ở đây." }));
   for (const it of items) {
     const stat = h("small", { textContent: it.url });
-    const btn = h("button", { type: "button", textContent: "Xem số liệu" });
+    const btn = h("button", { className: "linkbtn", type: "button", textContent: "Xem số liệu" });
     btn.onclick = async () => {
-      const r = await fetch("/api/stats?code=" + it.code), d = await r.json();
-      stat.textContent = r.ok ? `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR` : d.error;
-      btn.remove();
+      btn.disabled = true; btn.textContent = "Đang tải...";
+      try {
+        const d = await call("/api/stats?code=" + encodeURIComponent(it.code));
+        stat.textContent = `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR`;
+        btn.textContent = "Làm mới";
+      } catch (x) { stat.textContent = x.message; btn.textContent = "Thử lại"; }
+      btn.disabled = false;
     };
-    ul.append(h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat, btn));
+    ul.append(h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat,
+      h("span", { className: "acts" }, btn)));
   }
 }
+function fail(msg, focus) {
+  $("#err").textContent = msg;
+  const f = $("#f"); f.classList.remove("shake"); void f.offsetWidth; f.classList.add("shake");
+  (focus || $("#url")).focus();
+}
+
 $("#f").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const go = $("#go"), err = $("#err"); err.textContent = ""; go.disabled = true; go.textContent = "Đang tạo...";
+  const err = $("#err"), go = $("#go"); err.textContent = "";
+  const url = normalize($("#url").value), alias = $("#alias").value.trim();
+  if (!url) return fail("Hãy dán link cần rút gọn.");
+  if (url.length > 2048) return fail("Link dài quá 2048 ký tự.");
+  if (alias && !/^[A-Za-z0-9_-]{3,32}$/.test(alias)) {
+    $("#alias").closest("details").open = true;
+    return fail("Tên riêng gồm 3-32 ký tự chữ, số, _ hoặc -.", $("#alias"));
+  }
+  if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
+  go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
   try {
-    const r = await fetch("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: $("#url").value, alias: $("#alias").value || undefined }) });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Không tạo được link");
-    showResult(d); save([d, ...load()]); renderHist(); $("#url").value = ""; $("#alias").value = "";
-  } catch (x) { err.textContent = x.message; }
-  go.disabled = false; go.textContent = "Rút gọn";
+    const d = await call("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, alias: alias || undefined }) });
+    showResult(d); save([d, ...load().filter((x) => x.code !== d.code)]); renderHist();
+    $("#url").value = ""; $("#alias").value = ""; toast("Đã tạo link ngắn");
+  } catch (x) { showIdle(); fail(x.message); }
+  go.disabled = false; go.classList.remove("busy"); go.textContent = "Rút gọn";
 });
+$("#url").addEventListener("input", () => ($("#err").textContent = ""));
+if (navigator.clipboard && navigator.clipboard.readText) {
+  const pb = $("#paste"); pb.hidden = false;
+  pb.onclick = async () => {
+    try { $("#url").value = (await navigator.clipboard.readText()).trim(); $("#url").focus(); }
+    catch { toast("Trình duyệt không cho đọc bộ nhớ tạm, hãy dán thủ công (Ctrl+V)", true); }
+  };
+}
+$("#clear").onclick = () => { if (confirm("Xoá lịch sử link trên máy này? Link vẫn hoạt động bình thường.")) { save([]); renderHist(); } };
+addEventListener("offline", () => toast("Bạn đã mất kết nối mạng", true));
+addEventListener("online", () => toast("Đã có mạng trở lại"));
 renderHist();
 document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 </script>

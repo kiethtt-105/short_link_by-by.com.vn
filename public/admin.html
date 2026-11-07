@@ -5,27 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Quản trị</title>
-<meta name="theme-color" content="#2b59ff">
+<meta name="theme-color" content="#06050f">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=2">
 </head>
 <body class="admin">
 <header class="top">
   <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28"><span class="host">Quản trị</span></a>
-  <div class="links"><a href="/">Trang chủ</a></div>
+  <div class="links"><a class="pill" href="/">Trang chủ</a><a class="pill" href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn <span aria-hidden="true">↗</span></a><button id="logout" class="pill" type="button" hidden>Đăng xuất</button></div>
 </header>
 <main>
   <h1>Quản trị hệ thống</h1>
   <p class="muted">Đăng nhập để quản lý link, theo dõi nhật ký hoạt động và tùy chỉnh cài đặt.</p>
   <form id="login">
     <input id="pass" type="password" placeholder="Mật khẩu quản trị" autocomplete="current-password" aria-label="Mật khẩu quản trị" required>
-    <button class="primary">Đăng nhập</button>
+    <button id="lbtn" class="primary">Đăng nhập</button>
   </form>
   <div id="loginMsg" class="err" role="alert"></div>
 
@@ -51,15 +51,25 @@
     </section>
   </div>
 </main>
-<footer class="foot">© <span class="host">Rút gọn link</span> · Designed by Tuan Kiett</footer>
+<footer class="foot">© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
+function toast(msg, bad) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2600);
+}
+window.alert = (m) => toast(m, true); // mọi thông báo lỗi dùng toast thay hộp thoại
 let pass = "";
+function logout(msg) {
+  pass = ""; $("#app").hidden = true; $("#logout").hidden = true; $("#login").hidden = false;
+  $("#pass").value = ""; $("#loginMsg").textContent = msg || ""; $("#pass").focus();
+}
 async function raw(path, opt = {}) {
   const r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", "x-admin-key": pass } });
-  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi"); }
+  if (!r.ok) { if (r.status === 401 && !$("#app").hidden) logout("Mật khẩu không còn hợp lệ, hãy đăng nhập lại."); const d = await r.json().catch(() => ({})); throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi"); }
   return r;
 }
 const api = async (path, opt) => (await raw(path, opt)).json();
@@ -103,7 +113,7 @@ $("#csv").onclick = async () => {
   try {
     const a = $("#act").value, r = await raw("/api/logs?format=csv&limit=5000" + (a ? "&action=" + a : ""));
     const url = URL.createObjectURL(await r.blob());
-    h("a", { href: url, download: "logs.csv" }).click(); URL.revokeObjectURL(url);
+    h("a", { href: url, download: "logs.csv" }).click(); setTimeout(() => URL.revokeObjectURL(url), 4000);
   } catch (e) { alert(e.message); }
 };
 
@@ -138,6 +148,7 @@ $("#sf").addEventListener("submit", async (e) => {
 });
 
 /* Tab và đăng nhập */
+$("#logout").onclick = () => logout("");
 const loaders = { links: loadLinks, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };
 document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", async () => {
   document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-selected", x === b));
@@ -146,8 +157,10 @@ document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click
 }));
 $("#login").addEventListener("submit", async (e) => {
   e.preventDefault(); pass = $("#pass").value; $("#loginMsg").textContent = "";
-  try { await loadLinks(); $("#login").hidden = true; $("#app").hidden = false; }
+  const b = $("#lbtn"); b.disabled = true; b.classList.add("busy");
+  try { await loadLinks(); $("#login").hidden = true; $("#app").hidden = false; $("#logout").hidden = false; }
   catch (x) { $("#loginMsg").textContent = x.message; pass = ""; }
+  b.disabled = false; b.classList.remove("busy");
 });
 </script>
 </body>
