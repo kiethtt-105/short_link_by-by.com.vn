@@ -421,6 +421,7 @@ async function logs(req, res) {
   const code = req.query.code ? String(req.query.code) : null;
   // from sai định dạng thì bỏ qua (trước đây gây lỗi 500)
   const from = req.query.from && !Number.isNaN(Date.parse(req.query.from)) ? new Date(req.query.from).toISOString() : null;
+  const ip = req.query.ip ? String(req.query.ip).slice(0, 45) : null;
   const afterId = /^\d+$/.test(String(req.query.after_id ?? "")) ? String(req.query.after_id) : null;
 
   await init();
@@ -429,11 +430,13 @@ async function logs(req, res) {
         FROM logs WHERE id > ${afterId}::bigint
           AND (${action}::text IS NULL OR action = ${action})
           AND (${code}::text IS NULL OR code = ${code})
+          AND (${ip}::text IS NULL OR ip = ${ip})
         ORDER BY id ASC LIMIT ${limit}`
     : await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail, country, city, device, browser, os, is_bot, meta
         FROM logs
         WHERE (${action}::text IS NULL OR action = ${action})
           AND (${code}::text IS NULL OR code = ${code})
+          AND (${ip}::text IS NULL OR ip = ${ip})
           AND (${from}::timestamptz IS NULL OR ts >= ${from}::timestamptz)
         ORDER BY id DESC LIMIT ${limit}`;
 
@@ -605,7 +608,7 @@ async function watch(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const base = baseUrl(req);
   if (req.query.test) {
-    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nTừ giờ mọi thao tác đều có tin: tạo link, bấm link, quét QR, đăng nhập quản trị, khoá/xoá/sửa link, đổi cài đặt...\nCộng thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.\nTắt bớt: Cài đặt → «Telegram: thao tác KHÔNG báo».`) });
+    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nBạn sẽ nhận tin khi: tạo link, đăng nhập quản trị, khoá/xoá/sửa link, đổi cài đặt... (bấm link, quét QR, bot, 404 mặc định đã tắt)\nCộng thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.\nTắt bớt: Cài đặt → «Telegram: thao tác KHÔNG báo».`) });
   }
   await init();
 
@@ -666,7 +669,17 @@ async function cleanup(req, res) {
   log(req, { action: "purge", status: 200, detail: `deleted ${n}` });
   res.json({ ok: true, deleted: n });
 }
-const routes = { shorten, check, stats, qr, r: redirect, links, logs, settings, cleanup, sync, suggest, spark, report, health, watch };
+// GET /api/index?op=reports — các link bị báo cáo trong 7 ngày gần nhất (cho tab "Báo cáo" ở /admin)
+async function reports(req, res) {
+  if (!(await requireAdmin(req, res))) return;
+  await init();
+  const rows = await sql`SELECT r.code, r.n, r.last, r.reasons, k.url, k.disabled FROM (
+      SELECT code, count(*)::int AS n, max(ts) AS last, array_agg(DISTINCT detail) AS reasons FROM logs
+      WHERE action = 'report' AND ts > now() - interval '7 days' GROUP BY code) r
+    LEFT JOIN links k ON k.code = r.code ORDER BY r.n DESC, r.last DESC LIMIT 50`;
+  res.json({ reports: rows });
+}
+const routes = { reports, shorten, check, stats, qr, r: redirect, links, logs, settings, cleanup, sync, suggest, spark, report, health, watch };
 
 export default async function handler(req, res) {
   const op = req.query.op;

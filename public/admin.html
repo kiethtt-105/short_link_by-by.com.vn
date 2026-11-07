@@ -33,13 +33,19 @@
     <div id="kpis" class="kpis"></div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="links" aria-selected="true">Link</button>
+      <button role="tab" data-tab="reports" aria-selected="false">Báo cáo</button>
       <button role="tab" data-tab="logs" aria-selected="false">Nhật ký</button>
       <button role="tab" data-tab="settings" aria-selected="false">Cài đặt</button>
     </nav>
     <section id="links">
       <div class="bar"><input id="q" class="grow" placeholder="Tìm theo mã hoặc link gốc (bấm / để tìm nhanh)" aria-label="Tìm link"><span id="sum" class="muted"></span></div>
-      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th class="n">Lượt truy cập</th><th class="n">Từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
+      <div id="bulk" class="bar" hidden><span id="bsel" class="muted"></span><button id="block" class="b sm" type="button">Khoá đã chọn</button><button id="bdel" class="b sm danger" type="button">Xoá đã chọn</button></div>
+      <div class="wrap"><table><thead><tr><th><input type="checkbox" id="selall" aria-label="Chọn tất cả"></th><th>Link ngắn</th><th>Link gốc</th><th class="n">Lượt truy cập</th><th class="n">Từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
       <div id="more" class="bar" hidden><button id="moreb" class="b" type="button">Xem thêm</button><span id="moreh" class="muted"></span></div>
+    </section>
+    <section id="reports" hidden>
+      <p class="muted" style="margin:0 0 8px">Link bị báo cáo trong 7 ngày qua, nhiều báo cáo nhất lên đầu. Kiểm tra rồi khoá hoặc xoá nếu vi phạm.</p>
+      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th class="n">Số báo cáo</th><th>Lý do</th><th></th></tr></thead><tbody id="rbody"></tbody></table></div>
     </section>
     <section id="logs" hidden>
       <div class="bar"><select id="act" aria-label="Lọc theo thao tác"></select><input id="lf" class="grow" placeholder="Lọc nhanh: IP, mã, quốc gia, thiết bị..." aria-label="Lọc nhanh"><label class="chk"><input type="checkbox" id="auto"> Tự làm mới</label><button id="lgo" class="b">Tải lại</button><button id="csv" class="b">Tải CSV</button></div>
@@ -49,7 +55,7 @@
       <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
       <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button>
         <span class="muted">Telegram cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
-      <p class="muted" style="font-size:13px;margin:4px 0 0">Telegram báo MỌI thao tác (tạo link, bấm link, quét QR, đăng nhập, khoá/xoá/sửa link, đổi cài đặt...) và thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày. Thấy ồn thì tắt bớt ở ô «Telegram: thao tác KHÔNG báo» (ví dụ click,scan,bot_click,not_found).</p>
+      <p class="muted" style="font-size:13px;margin:4px 0 0">Telegram báo các thao tác quan trọng (tạo link, đăng nhập, khoá/xoá/sửa link, đổi cài đặt...) và thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày. Thấy ồn thì tắt bớt ở ô «Telegram: thao tác KHÔNG báo» (mặc định đã tắt click, scan, bot_click, not_found, rate_limited, captcha_failed, wrong_password).</p>
     </section>
   </div>
 </main>
@@ -131,11 +137,11 @@ async function loadLinks() {
     ["Tỉ lệ quét QR", d.clicks ? Math.round((d.scans / d.clicks) * 100) + "%" : "—"]]
     .map(([k, v]) => h("div", { className: "kpi" }, h("b", { textContent: v }), h("span", { textContent: k }))));
   $("#sum").textContent = $("#q").value ? `${d.links.length} kết quả` : `Hiển thị ${num(d.links.length)} / ${num(d.total)} link`;
-  const tb = $("#lbody");
+  const tb = $("#lbody"); $("#selall").checked = false; setTimeout(bulkUI);
   $("#more").hidden = d.links.length < lim;
   $("#moreb").hidden = lim >= 200;
   $("#moreh").textContent = lim >= 200 ? "Đã hiển thị tối đa 200 link, hãy dùng ô tìm kiếm để xem link cũ hơn." : "";
-  if (!d.links.length) return empty(tb, 6, $("#q").value ? "Không tìm thấy link phù hợp." : "Chưa có link nào. Tạo link ở trang chủ.");
+  if (!d.links.length) return empty(tb, 7, $("#q").value ? "Không tìm thấy link phù hợp." : "Chưa có link nào. Tạo link ở trang chủ.");
   tb.replaceChildren(...d.links.map((l) => {
     const cp = h("button", { className: "b sm", textContent: "Sao chép" });
     cp.onclick = async () => { try { await navigator.clipboard.writeText(location.origin + "/" + l.code); toast("Đã sao chép link"); } catch { toast("Không sao chép được", true); } };
@@ -163,7 +169,7 @@ async function loadLinks() {
       if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
       try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); toast("Đã xoá link"); loadLinks(); } catch (e) { toast(e.message, true); }
     };
-    return h("tr", {}, lab(h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
+    return h("tr", {}, lab(h("td", {}, h("input", { type: "checkbox", className: "sel", value: l.code })), "Chọn"), lab(h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
       ...(l.disabled ? [" ", chip("r", "Đã khoá")] : []), ...chips.flatMap((c) => [" ", c])), "Link ngắn"),
       cell(l.url, "u", undefined, "Link gốc"), cell(num(l.clicks), "n", undefined, "Lượt truy cập"), cell(num(l.scans), "n", undefined, "Từ QR"),
       cell(ago(l.created_at), "", full(l.created_at), "Tạo lúc"), h("td", { className: "ac-cell" }, h("div", { className: "acts" }, cp, qrBtn, det, edit, lock, del)));
@@ -208,13 +214,15 @@ const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lư�
   report: "Báo cáo link", sync_create: "Tạo mã khôi phục", sync_restore: "Khôi phục lịch sử", watch: "Kiểm tra định kỳ", admin_login: "Đăng nhập quản trị" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
 let logRows = [];
+// Gõ một địa chỉ IP vào ô lọc → máy chủ tìm trong TOÀN BỘ nhật ký (không chỉ 200 dòng đang hiện)
+const ipFilter = () => { const v = $("#lf").value.trim(); return /^[0-9a-f:.]{3,45}$/i.test(v) && /[.:]/.test(v) ? "&ip=" + encodeURIComponent(v) : ""; };
 function renderLogs() {
   const f = $("#lf").value.trim().toLowerCase(), tb = $("#gbody");
   const rows = f ? logRows.filter((x) => [x.ip, x.code, x.country, x.city, x.device, x.browser, x.os, x.detail, x.referrer].join(" ").toLowerCase().includes(f)) : logRows;
   if (!rows.length) return empty(tb, 8, f ? "Không có dòng nào khớp bộ lọc." : "Chưa có thao tác nào.");
   tb.replaceChildren(...rows.map((x) => {
     const ip = h("button", { className: "ipb", textContent: x.ip || "", title: "Bấm để lọc theo IP này" });
-    ip.onclick = (e) => { e.stopPropagation(); $("#lf").value = x.ip; renderLogs(); };
+    ip.onclick = (e) => { e.stopPropagation(); $("#lf").value = x.ip; loadLogs().catch((e) => toast(e.message, true)); };
     const tr = h("tr", { className: "click", title: "Bấm để xem toàn bộ thông tin" }, cell(ago(x.ts), "", full(x.ts), "Lúc"),
       cell((x.is_bot ? "🤖 " : "") + (ACTION[x.action] || x.action), "", x.action, "Thao tác"), cell(x.code, "", undefined, "Mã"), lab(h("td", {}, ip), "IP"),
       cell(flag(x.country) + [x.city, x.country].filter(Boolean).join(", "), "", undefined, "Vị trí"), cell([x.device, x.browser, x.os].filter(Boolean).join(" · "), "", undefined, "Thiết bị"),
@@ -225,7 +233,7 @@ function renderLogs() {
 }
 async function loadLogs() {
   const a = $("#act").value;
-  logRows = (await api("/api/logs?limit=200" + (a ? "&action=" + a : ""))).logs;
+  logRows = (await api("/api/logs?limit=200" + (a ? "&action=" + a : "") + ipFilter())).logs;
   renderLogs();
 }
 $("#lgo").onclick = () => loadLogs().catch((e) => toast(e.message, true));
@@ -235,7 +243,7 @@ let timer;
 $("#auto").onchange = () => { clearInterval(timer); if ($("#auto").checked) timer = setInterval(() => !$("#logs").hidden && loadLogs().catch(() => {}), 10000); };
 $("#csv").onclick = async () => {
   try {
-    const a = $("#act").value, r = await raw("/api/logs?format=csv&limit=5000" + (a ? "&action=" + a : ""));
+    const a = $("#act").value, r = await raw("/api/logs?format=csv&limit=5000" + (a ? "&action=" + a : "") + ipFilter());
     const url = URL.createObjectURL(await r.blob());
     h("a", { href: url, download: "logs.csv" }).click(); setTimeout(() => URL.revokeObjectURL(url), 4000);
   } catch (e) { toast(e.message, true); }
@@ -283,7 +291,40 @@ $("#chk").onclick = async () => {
 };
 
 /* Tab (nhớ theo #hash), đăng nhập */
-const loaders = { links: loadLinks, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };
+/* Chọn nhiều link: khoá / xoá hàng loạt */
+const picked = () => [...document.querySelectorAll("#lbody .sel:checked")].map((x) => x.value);
+const bulkUI = () => { const n = picked().length; $("#bulk").hidden = !n; $("#bsel").textContent = `Đã chọn ${n} link`; };
+$("#lbody").addEventListener("change", bulkUI);
+$("#selall").onchange = (e) => { document.querySelectorAll("#lbody .sel").forEach((x) => (x.checked = e.target.checked)); bulkUI(); };
+async function bulk(del) {
+  const codes = picked(); if (!codes.length) return;
+  if (del && !confirm(`Xoá ${codes.length} link đã chọn? Không hoàn tác được.`)) return;
+  let ok = 0;
+  for (const c of codes) {
+    try { await api("/api/links?code=" + encodeURIComponent(c), del ? { method: "DELETE" } : { method: "PATCH", body: JSON.stringify({ disabled: true }) }); ok++; } catch {}
+  }
+  toast(`${del ? "Đã xoá" : "Đã khoá"} ${ok}/${codes.length} link`, ok < codes.length);
+  await loadLinks().catch(() => {});
+}
+$("#block").onclick = () => bulk(false); $("#bdel").onclick = () => bulk(true);
+
+/* Tab Báo cáo */
+async function loadReports() {
+  const d = await api("/api/index?op=reports"), tb = $("#rbody");
+  if (!d.reports.length) return empty(tb, 5, "7 ngày qua chưa có báo cáo nào.");
+  tb.replaceChildren(...d.reports.map((r) => {
+    const q = "/api/links?code=" + encodeURIComponent(r.code);
+    const act = (t, cls, fn) => h("button", { className: "b sm " + cls, textContent: t, onclick: async () => { try { await fn(); loadReports(); } catch (e) { toast(e.message, true); } } });
+    const acts = r.url == null ? [] : [
+      act(r.disabled ? "Mở khoá" : "Khoá", "", () => api(q, { method: "PATCH", body: JSON.stringify({ disabled: !r.disabled }) })),
+      act("Xoá", "danger", async () => { if (confirm(`Xoá link /${r.code}?`)) await api(q, { method: "DELETE" }); })];
+    return h("tr", {}, lab(h("td", {}, h("a", { href: "/" + r.code, target: "_blank", rel: "noopener", textContent: "/" + r.code }),
+        ...(r.disabled ? [" ", h("span", { className: "chip r", textContent: "Đã khoá" })] : [])), "Link ngắn"),
+      cell(r.url || "(link đã bị xoá)", "u", undefined, "Link gốc"), cell(r.n, "n", undefined, "Số báo cáo"),
+      cell((r.reasons || []).join(" | "), "u", undefined, "Lý do"), h("td", { className: "ac-cell" }, h("div", { className: "acts" }, ...acts)));
+  }));
+}
+const loaders = { links: loadLinks, reports: loadReports, logs: loadLogs, settings: async () => renderSettings((await api("/api/settings")).settings) };
 async function go(t) {
   if (!loaders[t]) t = "links";
   document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
