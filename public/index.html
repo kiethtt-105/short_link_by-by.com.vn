@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rút gọn link và tạo mã QR</title>
 <meta name="description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
-<meta name="theme-color" content="#06050f">
+<meta name="theme-color" content="#07080f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rút gọn link và tạo mã QR">
+<meta property="og:description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR.">
+<meta property="og:image" content="/apple-touch-icon.png"><!-- Facebook/Zalo cần URL tuyệt đối: đổi thành https://tên-miền-của-bạn/apple-touch-icon.png -->
+<meta name="twitter:card" content="summary">
 <!-- Site key Cloudflare Turnstile (công khai, dán vào content). Để trống = tắt captcha. -->
 <meta name="turnstile-sitekey" content="0x4AAAAAAF3pU7wS_SW36dJv">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -15,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=6">
+<link rel="stylesheet" href="/style.css?v=7">
 </head>
 <body class="home">
 <header class="top">
@@ -32,19 +37,24 @@
         <button id="paste" class="linkbtn" type="button" hidden>Dán</button>
         <button id="go" class="go">Rút gọn</button>
       </form>
+      <div id="pv" class="pv" aria-live="polite"></div>
       <details><summary>Đặt tên riêng cho link</summary>
-        <input id="alias" autocomplete="off" placeholder="vd: khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
+        <div class="alias"><span class="pre"><span class="host"></span>/</span>
+          <input id="alias" autocomplete="off" placeholder="khuyen-mai (3-32 ký tự)" aria-label="Tên riêng">
+          <button id="rnd" class="linkbtn" type="button">Gợi ý</button></div>
       </details>
       <div id="cf"></div>
       <div id="err" class="err" role="alert"></div>
     </section>
     <section id="panel" class="panel" aria-live="polite">
+      <div class="qrph" aria-hidden="true"></div>
       <p class="hint">Mã QR và link ngắn của bạn sẽ hiện ở đây.</p>
     </section>
   </div>
   <section class="recent">
     <header><h2>Link gần đây</h2>
       <div id="seg" class="seg" hidden><button type="button" data-v="mine">Của bạn</button><button type="button" data-v="all">Toàn hệ thống</button></div>
+      <button id="csv" class="linkbtn" type="button" hidden>Xuất CSV</button>
       <button id="clear" class="linkbtn" type="button" hidden>Xoá lịch sử</button></header>
     <ul id="hist"></ul>
   </section>
@@ -56,11 +66,14 @@ const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
 const KEY = "short_history";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
-const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 8))); } catch {} };
+const save = (a) => { try { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 40))); } catch {} };
 
-function toast(msg, bad) {
-  const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
-  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2400);
+function toast(msg, bad, act) {
+  const t = $("#toast"); t.replaceChildren(msg);
+  if (act) { const b = h("button", { className: "linkbtn", type: "button", textContent: act.label });
+    b.onclick = () => { t.className = "toast"; act.fn(); }; t.append(" ", b); }
+  t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), act ? 5500 : 2400);
 }
 // Gọi API: gom lỗi mạng, lỗi JSON và lỗi HTTP về một Error có thông báo tiếng Việt
 async function call(path, opt) {
@@ -91,15 +104,36 @@ function copyBtn(text) {
   };
   return b;
 }
+const pngUrl = (d) => d.qr_url + "&format=png";
+async function copyQR(d) {
+  try { const b = await (await fetch(pngUrl(d))).blob();
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]); return true; } catch { return false; }
+}
+// Chia sẻ ảnh QR kèm link (điện thoại); không hỗ trợ file thì chia sẻ riêng link
+async function shareQR(d) {
+  try {
+    const b = await (await fetch(pngUrl(d))).blob(), f = new File([b], "qr.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) return await navigator.share({ files: [f], title: d.short_url, text: d.short_url });
+  } catch (e) { if (e.name === "AbortError") return; }
+  try { await navigator.share({ title: d.short_url, url: d.short_url }); } catch {}
+}
+function shareBtns(d) {
+  const a = [];
+  if (navigator.share) a.push(h("button", { className: "btn ghost", type: "button", textContent: "Chia sẻ", onclick: () => shareQR(d) }));
+  if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write)
+    a.push(h("button", { className: "btn ghost", type: "button", textContent: "Sao chép ảnh QR",
+      onclick: async () => { const ok = await copyQR(d); toast(ok ? "Đã sao chép ảnh QR" : "Không sao chép được ảnh QR", !ok); } }));
+  return a;
+}
 function showLoading() {
   const p = $("#panel"); p.className = "panel load";
   p.replaceChildren(h("p", { className: "hint", textContent: "Đang tạo link..." }));
 }
 function showIdle() {
   const p = $("#panel"); p.className = "panel";
-  p.replaceChildren(h("p", { className: "hint", textContent: "Mã QR và link ngắn của bạn sẽ hiện ở đây." }));
+  p.replaceChildren(h("div", { className: "qrph", "aria-hidden": "true" }), h("p", { className: "hint", textContent: "Mã QR và link ngắn của bạn sẽ hiện ở đây." }));
 }
-// Phóng to mã QR: hộp thoại lớn, quét trực tiếp từ màn hình được, có nút tải
+// Phóng to mã QR: thẻ lớn để quét trực tiếp từ màn hình hoặc chia sẻ
 function zoomQR(d) {
   let dlg = $("#qrbig");
   if (!dlg) {
@@ -108,9 +142,10 @@ function zoomQR(d) {
     document.body.append(dlg);
   }
   dlg.replaceChildren(
+    h("p", { className: "cap", textContent: "Quét mã để mở link" }),
     h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url }),
     h("p", { className: "short", textContent: d.short_url }),
-    h("div", { className: "row" },
+    h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" }),
       h("button", { className: "btn", type: "button", textContent: "Đóng", onclick: () => dlg.close() })));
@@ -119,13 +154,12 @@ function zoomQR(d) {
 function showResult(d) {
   const p = $("#panel"); p.className = "panel on";
   const img = h("img", { src: d.qr_url, alt: "Mã QR của " + d.short_url, width: 220, height: 220 });
-  img.onerror = () => img.replaceWith(h("p", { className: "err", textContent: "Chưa tải được mã QR. Link ngắn vẫn dùng được." }));
-  img.style.cursor = "zoom-in"; img.title = "Bấm để phóng to"; img.onclick = () => zoomQR(d);
-  const zoomBtn = h("button", { className: "btn ghost", type: "button", textContent: "Phóng to" });
-  zoomBtn.onclick = () => zoomQR(d);
-  p.replaceChildren(img,
+  const qb = h("button", { className: "qrb", type: "button", title: "Bấm để phóng to", onclick: () => zoomQR(d) }, img);
+  img.onerror = () => qb.replaceWith(h("p", { className: "err", textContent: "Chưa tải được mã QR. Link ngắn vẫn dùng được." }));
+  p.replaceChildren(qb,
     h("a", { className: "short", href: d.short_url, target: "_blank", rel: "noopener", textContent: d.short_url }),
-    h("div", { className: "row" }, copyBtn(d.short_url), zoomBtn,
+    h("div", { className: "row" }, copyBtn(d.short_url), ...shareBtns(d),
+      h("button", { className: "btn ghost", type: "button", textContent: "Phóng to", onclick: () => zoomQR(d) }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=svg&download=1", textContent: "Tải SVG" }),
       h("a", { className: "btn ghost", href: d.qr_url + "&format=png&download=1", textContent: "Tải PNG" })));
   if (matchMedia("(max-width:820px)").matches) p.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -133,28 +167,37 @@ function showResult(d) {
 // Đã đăng nhập /admin trên trình duyệt này thì hiện thêm link của toàn hệ thống (song song với link của bạn)
 const adminSess = () => { try { return localStorage.getItem("as") || ""; } catch { return ""; } };
 let view = adminSess() ? "all" : "mine";
+const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+const ago = (t) => { if (!t) return ""; const s = (Date.now() - t) / 1000;
+  return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : Math.floor(s / 86400) + " ngày trước"; };
+const undoable = (msg, bk) => toast(msg, false, { label: "Hoàn tác", fn: () => { save(bk); renderHist(); } });
 function histItem(it, note) {
-  const stat = h("small", { textContent: note || it.url });
+  const stat = h("small", { textContent: note || [host(it.url), ago(it.t)].filter(Boolean).join(" · "), title: it.url });
   const btn = h("button", { className: "linkbtn", type: "button", textContent: "Xem số liệu" });
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = "Đang tải...";
     try {
       const d = await call("/api/stats?code=" + encodeURIComponent(it.code));
-      stat.textContent = `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR`;
+      stat.textContent = `${d.clicks} lượt truy cập, trong đó ${d.scans} lượt quét QR · ${host(it.url)}`;
       btn.textContent = "Làm mới";
     } catch (x) { stat.textContent = x.message; btn.textContent = "Thử lại"; }
     btn.disabled = false;
   };
-  return h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat,
-    h("span", { className: "acts" }, btn));
+  const acts = h("span", { className: "acts" }, btn);
+  if (!note) acts.append(h("button", { className: "linkbtn", type: "button", textContent: "Xoá", onclick: () => {
+    const bk = load(); save(bk.filter((x) => x.code !== it.code)); renderHist(); undoable("Đã xoá khỏi lịch sử", bk); } }));
+  return h("li", {}, h("a", { href: it.short_url, target: "_blank", rel: "noopener", textContent: it.short_url }), stat, acts);
 }
+let shown = 8;
 function renderMine() {
-  const ul = $("#hist"), items = load(); ul.replaceChildren(); $("#clear").hidden = !items.length;
+  const ul = $("#hist"), items = load(); ul.replaceChildren(); $("#clear").hidden = $("#csv").hidden = !items.length;
   if (!items.length) return ul.append(h("li", { className: "empty", textContent: "Chưa có link nào. Link bạn tạo sẽ hiện ở đây." }));
-  for (const it of items) ul.append(histItem(it));
+  for (const it of items.slice(0, shown)) ul.append(histItem(it));
+  if (items.length > shown) ul.append(h("li", { className: "more" }, h("button", { className: "linkbtn", type: "button",
+    textContent: `Xem thêm (${items.length - shown})`, onclick: () => { shown += 8; renderMine(); } })));
 }
 async function renderAll() {
-  const ul = $("#hist"); $("#clear").hidden = true;
+  const ul = $("#hist"); $("#clear").hidden = $("#csv").hidden = true;
   ul.replaceChildren(h("li", { className: "empty", textContent: "Đang tải..." }));
   try {
     const d = await call("/api/links?limit=8", { headers: { "x-admin-session": adminSess() } });
@@ -194,26 +237,45 @@ $("#f").addEventListener("submit", async (e) => {
     return fail("Tên riêng gồm 3-32 ký tự chữ, số, _ hoặc -.", $("#alias"));
   }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
-  if (SITE_KEY && !tsToken) return fail("Đang xác minh chống spam, vui lòng thử lại sau giây lát.");
   go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
   try {
+    if (SITE_KEY && !tsToken) { go.textContent = "Đang xác minh"; await waitToken(8000); }
+    if (SITE_KEY && !tsToken) throw new Error("Chưa xác minh được chống spam. Hãy bấm Rút gọn lần nữa hoặc tải lại trang.");
+    go.textContent = "Đang tạo";
     const d = await call("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, alias: alias || undefined, turnstile: tsToken || undefined }) });
-    showResult(d); save([d, ...load().filter((x) => x.code !== d.code)]); renderHist();
-    $("#url").value = ""; $("#alias").value = ""; toast("Đã tạo link ngắn");
+    showResult(d); save([{ ...d, t: Date.now() }, ...load().filter((x) => x.code !== d.code)]); renderHist();
+    $("#url").value = ""; $("#alias").value = ""; $("#pv").textContent = "";
+    copy(d.short_url).then((ok) => toast(ok ? "Đã tạo và sao chép link" : "Đã tạo link ngắn"));
   } catch (x) { showIdle(); fail(x.message); }
   tsReset(); // token Turnstile chỉ dùng được một lần
   go.disabled = false; go.classList.remove("busy"); go.textContent = "Rút gọn";
 });
-$("#url").addEventListener("input", () => ($("#err").textContent = ""));
+const waitToken = (ms) => new Promise((r) => { const t0 = Date.now(); (function p() { if (tsToken || Date.now() - t0 > ms) return r(); setTimeout(p, 150); })(); });
+// Xem trước: cho người dùng thấy hệ thống hiểu link là gì sau khi tự thêm https://
+$("#url").addEventListener("input", () => {
+  $("#err").textContent = "";
+  const raw = $("#url").value.trim(), n = normalize(raw);
+  $("#pv").textContent = raw && n !== raw ? "Sẽ rút gọn: " + n : "";
+});
+$("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").focus(); };
 if (navigator.clipboard && navigator.clipboard.readText) {
   const pb = $("#paste"); pb.hidden = false;
   pb.onclick = async () => {
-    try { $("#url").value = (await navigator.clipboard.readText()).trim(); $("#url").focus(); }
+    try { $("#url").value = (await navigator.clipboard.readText()).trim(); $("#url").dispatchEvent(new Event("input")); $("#url").focus(); }
     catch { toast("Trình duyệt không cho đọc bộ nhớ tạm, hãy dán thủ công (Ctrl+V)", true); }
   };
 }
-$("#clear").onclick = () => { if (confirm("Xoá lịch sử link của bạn? Link vẫn hoạt động bình thường.")) { save([]); renderHist(); } };
+$("#clear").onclick = () => { const bk = load(); save([]); renderHist(); undoable("Đã xoá lịch sử (link vẫn hoạt động)", bk); };
+$("#csv").onclick = () => {
+  const q = (v) => '"' + String(v || "").replace(/"/g, '""') + '"';
+  const rows = [["code", "short_url", "url", "created"], ...load().map((x) => [x.code, x.short_url, x.url, x.t ? new Date(x.t).toISOString() : ""])];
+  const a = h("a", { download: "links.csv", href: URL.createObjectURL(new Blob(["\ufeff" + rows.map((r) => r.map(q).join(",")).join("\n")], { type: "text/csv" })) });
+  a.click(); URL.revokeObjectURL(a.href);
+};
+// Web Share Target: nhận link chia sẻ từ app khác (?url=...&text=...)
+{ const q = new URLSearchParams(location.search), m = ((q.get("url") || "") + " " + (q.get("text") || "")).match(/https?:\/\/\S+/i);
+  if (m) { $("#url").value = m[0]; $("#url").dispatchEvent(new Event("input")); history.replaceState(null, "", location.pathname); } }
 addEventListener("offline", () => toast("Bạn đã mất kết nối mạng", true));
 addEventListener("online", () => toast("Đã có mạng trở lại"));
 // Cloudflare Turnstile: chỉ nạp khi có site key; widget "interaction-only" thường chạy ngầm, không hiện
