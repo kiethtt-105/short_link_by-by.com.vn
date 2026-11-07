@@ -177,9 +177,21 @@ async function redirect(req, res) {
 
 /* ───────── Quản trị (cần x-admin-key) ───────── */
 
+// Cho phép đọc bằng ADMIN_KEY, hoặc bằng SHEET_TOKEN (header x-sheet-token) nhưng chỉ với GET.
+// Token của Sheet không sửa/xoá được gì.
+async function adminOrSheet(req, res) {
+  const st = (process.env.SHEET_TOKEN || "").trim();
+  if (st && req.method === "GET" && same(String(req.headers["x-sheet-token"] || ""), st)) {
+    res.setHeader("Cache-Control", "no-store");
+    return { ok: true, viaSheet: true };
+  }
+  return { ok: await requireAdmin(req, res), viaSheet: false };
+}
+
 // GET /api/links?q=&limit=50   DELETE /api/links?code=abc
 async function links(req, res) {
-  if (!(await requireAdmin(req, res))) return;
+  const auth = await adminOrSheet(req, res);
+  if (!auth.ok) return;
   await init();
 
   if (req.method === "DELETE") {
@@ -192,9 +204,9 @@ async function links(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Chỉ hỗ trợ GET hoặc DELETE" });
 
   const q = String(req.query.q || "").slice(0, 100);
-  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), auth.viaSheet ? 20000 : 200);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
-  const rows = await sql`SELECT code, url, clicks, scans, created_at FROM links
+  const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip FROM links
     WHERE (${q} = '' OR code ILIKE ${like} OR url ILIKE ${like})
     ORDER BY created_at DESC LIMIT ${limit}`;
   const [t] = await sql`SELECT count(*)::int AS total, COALESCE(sum(clicks), 0)::int AS clicks,
@@ -205,10 +217,7 @@ async function links(req, res) {
 // GET /api/logs?limit=100&action=click&code=abc&from=2026-11-01&format=csv
 // Apps Script kéo log tăng dần: GET /api/logs?after_id=123&limit=1000 + header x-sheet-token (chỉ đọc log)
 async function logs(req, res) {
-  const st = (process.env.SHEET_TOKEN || "").trim();
-  const viaSheet = !!st && same(String(req.headers["x-sheet-token"] || ""), st);
-  if (viaSheet) res.setHeader("Cache-Control", "no-store");
-  else if (!(await requireAdmin(req, res))) return;
+  if (!(await adminOrSheet(req, res)).ok) return;
 
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 5000);
   const action = req.query.action || null;
@@ -243,7 +252,7 @@ async function logs(req, res) {
 
 // GET /api/settings   PUT /api/settings {key: value | null}
 async function settings(req, res) {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await adminOrSheet(req, res)).ok) return;
 
   if (req.method === "GET") return res.json({ settings: await describeSettings() });
   if (req.method === "PUT" || req.method === "POST") {
