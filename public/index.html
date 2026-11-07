@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rút gọn link và tạo mã QR</title>
+<title>Rút gọn link và tạo mã QR miễn phí | by.com.vn</title>
+<meta name="description" content="Dán link dài, nhận link ngắn và mã QR. Xem số lượt bấm và lượt quét QR của từng link. Miễn phí, không cần đăng ký.">
+<meta name="theme-color" content="#2b59ff">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;800&display=swap" rel="stylesheet">
@@ -11,15 +17,15 @@
 </head>
 <body class="home">
 <header class="top">
-  <a class="brand" href="/">by.com.vn</a>
-  <nav class="links"><a href="#features">Tính năng</a><a href="#recent">Link gần đây</a></nav>
+  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28">by.com.vn</a>
+  <nav class="links" aria-label="Điều hướng chính"><a href="#features">Tính năng</a><a href="#qr">Mã QR</a><a href="#tracking">Thống kê</a><a href="#faq">Câu hỏi thường gặp</a></nav>
 </header>
 <main>
-  <div class="hero">
+  <div class="hero" id="hero">
     <section>
-      <span class="chip">Rút gọn link miễn phí</span>
-      <h1>Dán link dài. Lấy link ngắn và mã QR.</h1>
-      <p class="lead">Không cần đăng ký. Mỗi link có sẵn mã QR, kèm số lượt truy cập và lượt quét QR để theo dõi.</p>
+      <span class="chip">Miễn phí, không cần đăng ký</span>
+      <h1>Rút gọn link, kèm mã QR và số lượt truy cập</h1>
+      <p class="lead">Dán link dài, nhận link ngắn và mã QR để chia sẻ hoặc in ra. Lượt bấm link và lượt quét QR được đếm riêng cho từng link.</p>
       <form id="f">
         <input id="url" type="url" placeholder="Dán link cần rút gọn" aria-label="Link cần rút gọn" required>
         <button id="go">Rút gọn</button>
@@ -33,17 +39,95 @@
       <p class="hint">Mã QR và link ngắn của bạn sẽ hiện ở đây.</p>
     </section>
   </div>
-  <div id="features" class="features">
-    <div class="card"><i>QR</i><h3>Mã QR có sẵn</h3><p>Tải về dạng SVG hoặc PNG để in lên tờ rơi, banner.</p></div>
-    <div class="card"><i>↗</i><h3>Theo dõi lượt truy cập</h3><p>Xem số lượt bấm và lượt quét QR của từng link.</p></div>
-    <div class="card"><i>Aa</i><h3>Tên riêng dễ nhớ</h3><p>Tự đặt đuôi link như /khuyen-mai thay vì mã ngẫu nhiên.</p></div>
+
+  <div class="strip" aria-label="Điểm chính">
+    <div><b>Không cần tài khoản</b><span>Dán link và dùng ngay</span></div>
+    <div><b>SVG và PNG</b><span>Tải mã QR về để in</span></div>
+    <div><b>Tên riêng 3-32 ký tự</b><span>Thay cho mã ngẫu nhiên</span></div>
+    <div><b>Hai loại lượt</b><span>Bấm link và quét QR tính riêng</span></div>
   </div>
+
+  <section id="features" class="block">
+    <h2>Ba việc, làm gọn trong một trang</h2>
+    <p class="sub">Rút gọn link, tạo mã QR và theo dõi lượt truy cập, không cần cài đặt hay đăng nhập.</p>
+    <div class="features">
+      <div class="card"><i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg></i><h3>Mã QR có sẵn</h3><p>Mỗi link ngắn đi kèm một mã QR. Tải về dạng SVG hoặc PNG để in lên tờ rơi, banner.</p></div>
+      <div class="card"><i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></i><h3>Theo dõi lượt truy cập</h3><p>Xem số lượt bấm và số lượt quét QR của từng link, kèm biểu đồ theo ngày.</p></div>
+      <div class="card"><i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></i><h3>Tên riêng dễ nhớ</h3><p>Tự đặt đuôi link như /khuyen-mai thay vì dùng mã ngẫu nhiên.</p></div>
+    </div>
+  </section>
+
+  <section id="qr" class="split">
+    <div class="vis"><svg class="qrdemo" viewBox="-1 -1 19 19" aria-hidden="true" fill="currentColor" shape-rendering="crispEdges"><rect x="0" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="0" y="10" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="0" y="12" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="0" y="15" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="1" y="16" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="2" y="10" width="1" height="1"/><rect x="2" y="12" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="3" y="13" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="5" y="16" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="6" y="14" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="6" y="16" width="1" height="1"/><rect x="8" y="0" width="1" height="1"/><rect x="8" y="1" width="1" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="8" y="15" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/><rect x="9" y="16" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="10" y="14" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="11" y="9" width="1" height="1"/><rect x="11" y="14" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="12" y="0" width="1" height="1"/><rect x="12" y="2" width="1" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="12" y="12" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/><rect x="13" y="6" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="13" y="12" width="1" height="1"/><rect x="13" y="15" width="1" height="1"/><rect x="14" y="0" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="14" y="8" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="15" y="0" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="15" y="8" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="15" y="10" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="15" y="13" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="16" y="2" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/><rect x="16" y="5" width="1" height="1"/><rect x="16" y="6" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="16" y="9" width="1" height="1"/><rect x="16" y="14" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="16" y="16" width="1" height="1"/></svg></div>
+    <div>
+      <span class="chip">Mã QR</span>
+      <h2>Mã QR sẵn sàng để in</h2>
+      <p>Tải SVG khi cần phóng to mà không vỡ nét, hoặc PNG để chèn nhanh vào tài liệu và bài đăng.</p>
+      <ul class="ticks"><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Phóng to lên banner vẫn sắc nét (SVG)</span></li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Màu và kích thước mã do quản trị viên thiết lập</span></li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Lượt quét được đếm riêng với lượt bấm</span></li></ul>
+    </div>
+  </section>
+
+  <section id="tracking" class="split rev">
+    <div class="vis"><svg viewBox="0 0 200 100" class="chartdemo" role="img" aria-label="Biểu đồ minh họa số lượt truy cập theo ngày" fill="currentColor"><rect x="10" y="68" width="16" height="22" rx="5"/><rect x="36" y="56" width="16" height="34" rx="5"/><rect x="62" y="62" width="16" height="28" rx="5"/><rect x="88" y="38" width="16" height="52" rx="5"/><rect x="114" y="46" width="16" height="44" rx="5"/><rect x="140" y="20" width="16" height="70" rx="5"/><rect x="166" y="32" width="16" height="58" rx="5"/></svg><small>Hình minh họa</small></div>
+    <div>
+      <span class="chip">Thống kê</span>
+      <h2>Biết link của bạn được dùng ra sao</h2>
+      <p>Mỗi link có trang số liệu riêng: tổng lượt truy cập, phần đến từ mã QR, 30 ngày gần nhất và các nguồn giới thiệu nhiều nhất.</p>
+      <ul class="ticks"><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Số lượt theo ngày, tính theo giờ Việt Nam</span></li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Nguồn giới thiệu nổi bật</span></li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Không hiển thị địa chỉ IP của người truy cập</span></li></ul>
+    </div>
+  </section>
+
+  <section id="ten-rieng" class="split">
+    <div class="vis"><span class="pill"><em>by.com.vn/</em>khuyen-mai</span></div>
+    <div>
+      <span class="chip">Tên riêng</span>
+      <h2>Link ngắn mang tên của bạn</h2>
+      <p>Thay mã ngẫu nhiên bằng đuôi dễ đọc, dễ nhớ. Dùng chữ cái, chữ số, dấu gạch dưới hoặc gạch ngang.</p>
+      <ul class="ticks"><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Độ dài từ 3 đến 32 ký tự</span></li><li><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Báo ngay nếu tên đã có người dùng</span></li></ul>
+    </div>
+  </section>
+</main>
+
+<section class="band" aria-labelledby="steps">
+  <h2 id="steps">Ba bước để có link ngắn</h2>
+  <ol class="steps">
+    <li><b>1</b><h3>Dán link</h3><p>Dán đường dẫn dài vào ô ở đầu trang, có thể kèm tên riêng.</p></li>
+    <li><b>2</b><h3>Nhận link và mã QR</h3><p>Sao chép link ngắn hoặc tải mã QR về máy.</p></li>
+    <li><b>3</b><h3>Xem số liệu</h3><p>Chọn “Xem số liệu” ở mục Link gần đây để biết lượt bấm và lượt quét.</p></li>
+  </ol>
+</section>
+
+<div class="after">
   <section id="recent" class="recent">
     <h2>Link gần đây trên máy này</h2>
     <ul id="hist"></ul>
   </section>
-</main>
-<footer class="foot">© <a href="https://by.com.vn" target="_blank" rel="noopener">by.com.vn</a> · Designed by Tuan Kiett</footer>
+
+  <section id="faq" class="faq">
+    <h2>Câu hỏi thường gặp</h2>
+    <div class="qa">
+      <details><summary>Link có hết hạn không?</summary><p>Hiện chưa có cơ chế hết hạn. Link hoạt động cho đến khi quản trị viên xoá.</p></details>
+      <details><summary>Có rút gọn được mọi link không?</summary><p>Chỉ nhận link bắt đầu bằng http:// hoặc https://, dài tối đa 2048 ký tự. Một số tên miền có thể bị chặn, và không thể rút gọn link của chính trang này.</p></details>
+      <details><summary>Lượt quét QR được tính thế nào?</summary><p>Mã QR trỏ về link ngắn kèm một dấu hiệu riêng, nên lượt quét được tính tách khỏi lượt bấm thông thường.</p></details>
+      <details><summary>Hệ thống ghi lại những dữ liệu nào?</summary><p>Mỗi lượt truy cập ghi thời gian, địa chỉ IP, trình duyệt và nguồn giới thiệu để thống kê và hạn chế lạm dụng. Trang số liệu công khai không hiển thị IP.</p></details>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Rút gọn link đầu tiên của bạn</h2>
+    <a class="btn" href="#hero">Về ô nhập link</a>
+  </section>
+</div>
+
+<footer class="sitefoot">
+  <div class="cols">
+    <div><a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28">by.com.vn</a>
+      <p>Công cụ rút gọn link kèm mã QR và thống kê lượt truy cập.</p></div>
+    <div><h4>Trên trang</h4><a href="#features">Tính năng</a><a href="#qr">Mã QR</a><a href="#tracking">Thống kê</a></div>
+    <div><h4>Trợ giúp</h4><a href="#faq">Câu hỏi thường gặp</a><a href="#recent">Link gần đây</a></div>
+  </div>
+  <p class="copy">© <a href="https://by.com.vn" target="_blank" rel="noopener">by.com.vn</a> · Designed by Tuan Kiett</p>
+</footer>
 <script>
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };

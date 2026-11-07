@@ -10,7 +10,7 @@ import {
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const ALIAS_RE = /^[A-Za-z0-9_-]{3,32}$/;
-const RESERVED = new Set(["api", "index", "favicon", "robots", "admin", "style"]);
+const RESERVED = new Set(["api", "index", "favicon", "robots", "admin", "style", "icons", "manifest", "apple-touch-icon", "sitemap"]);
 const newCode = () => Array.from({ length: 7 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 // Ô bắt đầu bằng = + - @ (hoặc tab/CR) có thể chạy như công thức khi mở CSV bằng Excel → thêm dấu ' phía trước
 const csvCell = (v) => {
