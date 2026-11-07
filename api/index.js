@@ -7,8 +7,9 @@ import {
   sql, init, log, logOp, clientInfo, baseUrl, same, purgeLogs,
   requireAdmin, getSettings, describeSettings, saveSettings,
   hit, turnstileOn, verifyTurnstile, unsafeThreat,
-  sha256, bg, telegramOn, notify, alertOnce, claimAlert, releaseAlert, safeGet,
+  sha256, bg, safeGet,
 } from "../lib/core.js";
+import { telegramOn, notify, alertOnce, claimAlert, releaseAlert } from "../lib/tele.js";
 
 // Bỏ ký tự dễ nhầm khi đọc/gõ (0 O 1 l I); link cũ có các ký tự này vẫn hoạt động bình thường
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -600,7 +601,7 @@ async function watch(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const base = baseUrl(req);
   if (req.query.test) {
-    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nBạn sẽ nhận 5 loại tin:\n⛔ Link hết lượt mở\n📈 Link tăng lượt đột biến\n🚩 Có người báo cáo link vi phạm\n⏳ Link hạn dài sắp hết hạn (tin tổng hợp hằng ngày)\n💀 Trang đích của link bị lỗi (tin tổng hợp hằng ngày)`) });
+    return res.json({ ok: true, sent: await notify(`✅ Telegram đã kết nối với ${base}\n\nTừ giờ mọi thao tác đều có tin: tạo link, bấm link, quét QR, đăng nhập quản trị, khoá/xoá/sửa link, đổi cài đặt...\nCộng thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.\nTắt bớt: Cài đặt → «Telegram: thao tác KHÔNG báo».`) });
   }
   await init();
 

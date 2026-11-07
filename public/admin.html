@@ -2,21 +2,20 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Quản trị</title>
-<meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07080f">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=14">
+<link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body class="admin">
 <header class="top">
   <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="26" height="26"><span class="host">Quản trị</span></a>
-  <div class="links"><a class="pill" href="/">Trang chủ</a><a class="pill ext" href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn <span aria-hidden="true">↗</span></a><button id="logout" class="pill" type="button" hidden>Đăng xuất</button></div>
+  <div class="links"><a class="pill" href="/">Trang chủ</a><a class="pill" href="https://by.com.vn/" target="_blank" rel="noopener">by.com.vn <span aria-hidden="true">↗</span></a><button id="logout" class="pill" type="button" hidden>Đăng xuất</button></div>
 </header>
 <main>
   <section id="gate" class="login">
@@ -38,8 +37,7 @@
     </nav>
     <section id="links">
       <div class="bar"><input id="q" class="grow" placeholder="Tìm theo mã hoặc link gốc (bấm / để tìm nhanh)" aria-label="Tìm link"><span id="sum" class="muted"></span></div>
-      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th class="n">Lượt truy cập</th><th class="n">Từ QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
-      <div id="more" class="bar" hidden><button id="moreb" class="b" type="button">Xem thêm</button><span id="moreh" class="muted"></span></div>
+      <div class="wrap"><table><thead><tr><th>Link ngắn</th><th>Link gốc</th><th class="n">Lượt mở</th><th class="n">Lượt quét QR</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="lbody"></tbody></table></div>
     </section>
     <section id="logs" hidden>
       <div class="bar"><select id="act" aria-label="Lọc theo thao tác"></select><input id="lf" class="grow" placeholder="Lọc nhanh: IP, mã, quốc gia, thiết bị..." aria-label="Lọc nhanh"><label class="chk"><input type="checkbox" id="auto"> Tự làm mới</label><button id="lgo" class="b">Tải lại</button><button id="csv" class="b">Tải CSV</button></div>
@@ -49,7 +47,6 @@
       <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
       <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button>
         <span class="muted">Telegram cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
-      <p class="muted" style="font-size:13px;margin:4px 0 0">Telegram sẽ báo 5 loại tin: ⛔ link hết lượt mở · 📈 link tăng lượt đột biến · 🚩 có người báo cáo link · ⏳ link hạn dài sắp hết hạn · 💀 trang đích bị lỗi (hai loại cuối gộp thành 1 tin mỗi ngày).</p>
     </section>
   </div>
 </main>
@@ -84,8 +81,7 @@ const full = (t) => new Date(t).toLocaleString("vi-VN");
 const ago = (t) => { const s = (Date.now() - new Date(t)) / 1e3;
   return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : new Date(t).toLocaleDateString("vi-VN"); };
 const flag = (c) => (/^[A-Z]{2}$/.test(c || "") ? String.fromCodePoint(...[...c].map((x) => 127397 + x.charCodeAt())) + " " : "");
-const cell = (v, cls, title, label) => { const td = h("td", { textContent: v ?? "", className: cls || "", title: title ?? v ?? "" }); if (label) td.dataset.label = label; return td; };
-const lab = (td, label) => { td.dataset.label = label; return td; };
+const cell = (v, cls, title) => h("td", { textContent: v ?? "", className: cls || "", title: title ?? v ?? "" });
 const chip = (s) => h("span", { className: "chip " + (s >= 500 ? "r" : s >= 400 ? "w" : s >= 300 ? "c" : "g"), textContent: s });
 const empty = (tb, n, text) => tb.replaceChildren(h("tr", {}, h("td", { colSpan: n, className: "muted", textContent: text })));
 
@@ -99,7 +95,7 @@ const sect = (title, rows) => h("div", { className: "sect" }, h("h3", { textCont
 function showDetail(l, d) {
   const pair = (a) => a.map((x) => [x.name, x.clicks]);
   $("#dbody").replaceChildren(h("h2", { textContent: "/" + l.code }), h("p", { className: "muted", textContent: l.url }),
-    sect("Tổng quan", [["Lượt truy cập (người thật)", d.clicks], ["Trong đó quét QR", d.scans], ["Bot / xem trước link", d.bot_clicks ?? 0]]),
+    sect("Tổng quan", [["Lượt mở (người thật)", d.clicks], ["Trong đó quét QR", d.scans], ["Bot / xem trước link", d.bot_clicks ?? 0]]),
     sect("Quốc gia", pair(d.by_country || [])), sect("Thiết bị", pair(d.by_device || [])), sect("Trình duyệt", pair(d.by_browser || [])),
     sect("Hệ điều hành", pair(d.by_os || [])), sect("Nguồn truy cập", d.top_referrers.map((x) => [x.referrer, x.clicks])),
     sect("7 ngày gần nhất", d.by_day.slice(0, 7).map((x) => [String(x.day).slice(0, 10), x.clicks])));
@@ -111,19 +107,13 @@ function showLog(x) {
 }
 
 /* Link + số liệu tổng */
-let lim = 50, linkSeq = 0;
 async function loadLinks() {
-  const my = ++linkSeq; // gõ tìm kiếm nhanh: chỉ nhận kết quả của lần gọi mới nhất
-  const d = await api("/api/links?limit=" + lim + "&q=" + encodeURIComponent($("#q").value));
-  if (my !== linkSeq) return;
-  $("#kpis").replaceChildren(...[["Tổng link", num(d.total)], ["Lượt truy cập", num(d.clicks)], ["Lượt quét QR", num(d.scans)],
+  const d = await api("/api/links?q=" + encodeURIComponent($("#q").value));
+  $("#kpis").replaceChildren(...[["Tổng link", num(d.total)], ["Lượt mở link", num(d.clicks)], ["Lượt quét QR", num(d.scans)],
     ["Tỉ lệ quét QR", d.clicks ? Math.round((d.scans / d.clicks) * 100) + "%" : "—"]]
     .map(([k, v]) => h("div", { className: "kpi" }, h("b", { textContent: v }), h("span", { textContent: k }))));
-  $("#sum").textContent = $("#q").value ? `${d.links.length} kết quả` : `Hiển thị ${num(d.links.length)} / ${num(d.total)} link`;
+  $("#sum").textContent = $("#q").value ? `${d.links.length} kết quả` : "";
   const tb = $("#lbody");
-  $("#more").hidden = d.links.length < lim;
-  $("#moreb").hidden = lim >= 200;
-  $("#moreh").textContent = lim >= 200 ? "Đã hiển thị tối đa 200 link, hãy dùng ô tìm kiếm để xem link cũ hơn." : "";
   if (!d.links.length) return empty(tb, 6, $("#q").value ? "Không tìm thấy link phù hợp." : "Chưa có link nào. Tạo link ở trang chủ.");
   tb.replaceChildren(...d.links.map((l) => {
     const cp = h("button", { className: "b sm", textContent: "Sao chép" });
@@ -147,13 +137,12 @@ async function loadLinks() {
     if (l.max_clicks) { const left = l.max_clicks - l.clicks; chips.push(chip(left <= 0 ? "r" : "c", left <= 0 ? "Hết lượt" : `Còn ${num(left)} lượt`)); }
     const del = h("button", { className: "b sm danger", textContent: "Xoá" });
     del.onclick = async () => {
-      if (!confirm(`Xoá link /${l.code}? Link này sẽ ngừng hoạt động.`)) return;
+      if (!confirm(`Xoá link /${l.code}? Link sẽ ngừng hoạt động và không thể khôi phục.`)) return;
       try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "DELETE" }); toast("Đã xoá link"); loadLinks(); } catch (e) { toast(e.message, true); }
     };
-    return h("tr", {}, lab(h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
-      ...(l.disabled ? [" ", chip("r", "Đã khoá")] : []), ...chips.flatMap((c) => [" ", c])), "Link ngắn"),
-      cell(l.url, "u", undefined, "Link gốc"), cell(num(l.clicks), "n", undefined, "Lượt truy cập"), cell(num(l.scans), "n", undefined, "Từ QR"),
-      cell(ago(l.created_at), "", full(l.created_at), "Tạo lúc"), h("td", { className: "ac-cell" }, h("div", { className: "acts" }, cp, det, edit, lock, del)));
+    return h("tr", {}, h("td", {}, h("a", { href: "/" + l.code, target: "_blank", rel: "noopener", textContent: "/" + l.code }),
+      ...(l.disabled ? [" ", chip("r", "Đã khoá")] : []), ...chips.flatMap((c) => [" ", c])),
+      cell(l.url, "u"), cell(num(l.clicks), "n"), cell(num(l.scans), "n"), cell(ago(l.created_at), "", full(l.created_at)), h("td", { className: "acts" }, cp, det, edit, lock, del));
   }));
 }
 
@@ -161,7 +150,7 @@ async function loadLinks() {
 function editLink(l) {
   const dlg = h("dialog", {});
   const opt = (v, t) => h("option", { value: v, textContent: t });
-  const exp = h("select", {}, opt("keep", l.expires_at ? "Giữ nguyên (" + full(l.expires_at) + ")" : "Giữ nguyên (không hết hạn)"), opt("none", "Bỏ hạn"),
+  const exp = h("select", {}, opt("keep", l.expires_at ? "Giữ nguyên (" + full(l.expires_at) + ")" : "Giữ nguyên (không hết hạn)"), opt("none", "Bỏ hạn dùng"),
     opt("1", "1 giờ kể từ bây giờ"), opt("24", "1 ngày"), opt("168", "7 ngày"), opt("720", "30 ngày"), opt("8760", "1 năm"));
   const mc = h("input", { type: "number", min: 1, max: 10000000, placeholder: "Không giới hạn", value: l.max_clicks || "" });
   const cp = h("input", { type: "checkbox" });
@@ -179,7 +168,7 @@ function editLink(l) {
   };
   dlg.append(h("h2", { textContent: "/" + l.code }),
     h("div", { className: "stack" },
-      h("label", {}, "Hạn dùng", exp), h("label", {}, "Giới hạn lượt truy cập (đã dùng " + num(l.clicks) + ")", mc),
+      h("label", {}, "Hạn dùng", exp), h("label", {}, "Số lượt mở tối đa (đã dùng " + num(l.clicks) + ")", mc),
       ...(l.protected ? [h("label", { className: "chk" }, cp, " Gỡ mật khẩu của link")] : []),
       h("div", { className: "bar" }, save, h("button", { className: "b", type: "button", textContent: "Huỷ", onclick: close }))));
   dlg.addEventListener("click", (e) => e.target === dlg && close());
@@ -202,10 +191,10 @@ function renderLogs() {
   tb.replaceChildren(...rows.map((x) => {
     const ip = h("button", { className: "ipb", textContent: x.ip || "", title: "Bấm để lọc theo IP này" });
     ip.onclick = (e) => { e.stopPropagation(); $("#lf").value = x.ip; renderLogs(); };
-    const tr = h("tr", { className: "click", title: "Bấm để xem toàn bộ thông tin" }, cell(ago(x.ts), "", full(x.ts), "Lúc"),
-      cell((x.is_bot ? "🤖 " : "") + (ACTION[x.action] || x.action), "", x.action, "Thao tác"), cell(x.code, "", undefined, "Mã"), lab(h("td", {}, ip), "IP"),
-      cell(flag(x.country) + [x.city, x.country].filter(Boolean).join(", "), "", undefined, "Vị trí"), cell([x.device, x.browser, x.os].filter(Boolean).join(" · "), "", undefined, "Thiết bị"),
-      lab(h("td", {}, chip(x.status)), "Trạng thái"), cell(x.detail, "u", undefined, "Chi tiết"));
+    const tr = h("tr", { className: "click", title: "Bấm để xem toàn bộ thông tin" }, cell(ago(x.ts), "", full(x.ts)),
+      cell((x.is_bot ? "🤖 " : "") + (ACTION[x.action] || x.action), "", x.action), cell(x.code), h("td", {}, ip),
+      cell(flag(x.country) + [x.city, x.country].filter(Boolean).join(", ")), cell([x.device, x.browser, x.os].filter(Boolean).join(" · ")),
+      h("td", {}, chip(x.status)), cell(x.detail, "u"));
     tr.onclick = () => showLog(x);
     return tr;
   }));
@@ -304,8 +293,7 @@ async function enter(password) {
 }
 $("#login").addEventListener("submit", (e) => { e.preventDefault(); enter($("#pass").value); });
 let qt;
-$("#moreb").onclick = () => { lim = Math.min(lim + 50, 200); loadLinks().catch((e) => toast(e.message, true)); };
-$("#q").addEventListener("input", () => { lim = 50; clearTimeout(qt); qt = setTimeout(() => loadLinks().catch((e) => toast(e.message, true)), 300); });
+$("#q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => loadLinks().catch((e) => toast(e.message, true)), 300); });
 addEventListener("keydown", (e) => {
   if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$("#app").hidden) {
     e.preventDefault(); ($("#logs").hidden ? $("#q") : $("#lf")).focus();
