@@ -18,7 +18,7 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=11">
+<link rel="stylesheet" href="/style.css?v=12">
 </head>
 <body class="home">
 <header class="top">
@@ -52,6 +52,7 @@
           <div class="opt"><label for="pw">Mật khẩu mở link</label>
             <div class="pwrow"><input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt"><button id="pwt" class="linkbtn" type="button">Hiện</button></div>
             <small>4-64 ký tự. Người mở phải nhập mật khẩu.</small></div>
+          <label class="opt full tick"><input type="checkbox" id="strip"> Bỏ tham số theo dõi khỏi link (utm_*, fbclid, gclid...)</label>
         </div>
       </details>
       <div id="cf"></div>
@@ -70,7 +71,8 @@
     <ul id="hist"></ul>
   </section>
 </main>
-<footer class="foot">© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
+<footer class="foot">
+  <p class="bm">Dấu trang nhanh: kéo nút <a id="bm" href="#" draggable="true">Rút gọn trang này</a> lên thanh dấu trang.</p>© <span class="host">Rút gọn link</span> · <a class="credit" href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></footer>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -104,6 +106,13 @@ async function copy(text) {
 }
 // Người dùng hay dán "abc.com/x" không có https:// → tự thêm thay vì báo lỗi
 const normalize = (v) => { v = v.trim(); return v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? "https://" + v : v; };
+const TRACK = /^(utm_|fbclid$|gclid$|gbraid$|wbraid$|msclkid$|yclid$|igshid$|mc_eid$|mc_cid$|_ga$|ref_src$)/i;
+// Thêm https:// nếu thiếu; nếu bật tuỳ chọn thì cắt thêm các tham số theo dõi
+const prep = (v) => {
+  v = normalize(v);
+  if (!v || !$("#strip").checked) return v;
+  try { const u = new URL(v); [...u.searchParams.keys()].filter((k) => TRACK.test(k)).forEach((k) => u.searchParams.delete(k)); return u.href; } catch { return v; }
+};
 
 function copyBtn(text) {
   const b = h("button", { className: "btn", type: "button", textContent: "Sao chép" });
@@ -257,7 +266,7 @@ function fail(msg, focus) {
 $("#f").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("#err"), go = $("#go"); err.textContent = "";
-  const url = normalize($("#url").value), alias = $("#alias").value.trim();
+  const url = prep($("#url").value), alias = $("#alias").value.trim();
   if (!url) return fail("Hãy dán link cần rút gọn.");
   if (url.length > 2048) return fail("Link dài quá 2048 ký tự.");
   if (alias && !/^[A-Za-z0-9_-]{3,32}$/.test(alias)) {
@@ -268,6 +277,15 @@ $("#f").addEventListener("submit", async (e) => {
   if (maxc && !(/^[1-9]\d{0,7}$/.test(maxc) && +maxc <= 10000000)) { $("#maxc").closest("details").open = true; return fail("Giới hạn lượt phải là số nguyên từ 1 đến 10.000.000.", $("#maxc")); }
   if (pw && (pw.length < 4 || pw.length > 64)) { $("#pw").closest("details").open = true; return fail("Mật khẩu link gồm 4-64 ký tự.", $("#pw")); }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
+  // Link đã rút gọn trước đó và không có tuỳ chọn riêng → dùng lại, không tạo mới
+  if (!alias && !$("#exp").value && !maxc && !pw) {
+    let href = ""; try { href = new URL(url).href; } catch {}
+    const old = load().find((x) => x.url === href && !x.protected && !x.max_clicks && !x.expires_at);
+    if (old && (await call("/api/stats?code=" + encodeURIComponent(old.code)).then(() => true, () => false))) {
+      showResult(old); save([old, ...load().filter((x) => x.code !== old.code)]); renderHist();
+      $("#url").value = ""; $("#pv").textContent = ""; return toast("Bạn đã rút gọn link này rồi, dùng lại link cũ");
+    }
+  }
   go.disabled = true; go.classList.add("busy"); go.textContent = "Đang tạo"; showLoading();
   try {
     if (SITE_KEY && !tsToken) { go.textContent = "Đang xác minh"; await waitToken(8000); }
@@ -287,10 +305,11 @@ const waitToken = (ms) => new Promise((r) => { const t0 = Date.now(); (function 
 // Xem trước: cho người dùng thấy hệ thống hiểu link là gì sau khi tự thêm https://
 $("#url").addEventListener("input", () => {
   $("#err").textContent = "";
-  const raw = $("#url").value.trim(), n = normalize(raw);
+  const raw = $("#url").value.trim(), n = prep(raw);
   $("#pv").textContent = raw && n !== raw ? "Sẽ rút gọn: " + n : "";
 });
 $("#pwt").onclick = () => { const p = $("#pw"), show = p.type === "password"; p.type = show ? "text" : "password"; $("#pwt").textContent = show ? "Ẩn" : "Hiện"; };
+$("#strip").onchange = () => $("#url").dispatchEvent(new Event("input"));
 $("#rnd").onclick = () => { $("#alias").value = "lk-" + Math.random().toString(36).slice(2, 7); $("#alias").dispatchEvent(new Event("input")); $("#alias").focus(); };
 // Kiểm tra tên riêng còn trống không (gọi sau khi ngừng gõ 400ms)
 let aliasTimer;
@@ -336,6 +355,7 @@ if (SITE_KEY) {
   };
   document.head.append(h("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit", async: true, defer: true }));
 }
+$("#bm").href = "javascript:location.href='" + location.origin + "/?url='+encodeURIComponent(location.href)";
 renderHist();
 if (!matchMedia("(pointer:coarse)").matches && !$("#url").value) $("#url").focus();
 document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
