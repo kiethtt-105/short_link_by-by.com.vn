@@ -309,3 +309,5 @@ dialog::backdrop{background:rgba(20,28,60,.45)}
   .admin .acts .b{flex:1 1 calc(33% - 8px)}
   .admin .sect li{flex-wrap:wrap}
 }
+
+.qrimg{display:block;margin:12px auto;padding:10px;background:#fff;border-radius:12px;max-width:100%;height:auto}
