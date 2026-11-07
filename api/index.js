@@ -9,10 +9,11 @@ import {
   hit, turnstileOn, verifyTurnstile, unsafeThreat,
 } from "../lib/core.js";
 
-const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+// Bỏ ký tự dễ nhầm khi đọc/gõ (0 O 1 l I); link cũ có các ký tự này vẫn hoạt động bình thường
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const ALIAS_RE = /^[A-Za-z0-9_-]{3,32}$/;
 const RESERVED = new Set(["api", "index", "favicon", "robots", "admin", "style", "icons", "manifest", "apple-touch-icon", "sitemap"]);
-const newCode = () => Array.from({ length: 7 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
+const newCode = (len = 5) => Array.from({ length: len }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 // Ô bắt đầu bằng = + - @ (hoặc tab/CR) có thể chạy như công thức khi mở CSV bằng Excel → thêm dấu ' phía trước
 const csvCell = (v) => {
   let s = String(v ?? "");
@@ -97,7 +98,7 @@ async function shorten(req, res) {
     if (!r.length) return fail(409, "Alias đã tồn tại");
   } else {
     for (let i = 0; i < 10 && !code; i++) {
-      const c = newCode();
+      const c = newCode(cfg.code_length);
       const r = await sql`INSERT INTO links(code, url, created_ip) VALUES (${c}, ${url}, ${ip})
                           ON CONFLICT DO NOTHING RETURNING code`;
       if (r.length) code = c;
