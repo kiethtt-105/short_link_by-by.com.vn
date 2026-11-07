@@ -1,6 +1,6 @@
 {
-  "name": "by.com.vn – Rút gọn link và mã QR",
-  "short_name": "by.com.vn",
+  "name": "Rút gọn link và mã QR",
+  "short_name": "Rút gọn link",
   "description": "Rút gọn link, tạo mã QR và xem số lượt truy cập.",
   "lang": "vi",
   "start_url": "/",

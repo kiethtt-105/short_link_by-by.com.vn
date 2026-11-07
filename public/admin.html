@@ -17,7 +17,7 @@
 </head>
 <body class="admin">
 <header class="top">
-  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28">by.com.vn</a>
+  <a class="brand" href="/"><img src="/icons/icon.svg" alt="" width="28" height="28"><span class="host">Quản trị</span></a>
   <div class="links"><a href="/">Trang chủ</a></div>
 </header>
 <main>
@@ -51,8 +51,9 @@
     </section>
   </div>
 </main>
-<footer class="foot">© <a href="https://by.com.vn" target="_blank" rel="noopener">by.com.vn</a> · Designed by Tuan Kiett</footer>
+<footer class="foot">© <span class="host">Rút gọn link</span> · Designed by Tuan Kiett</footer>
 <script>
+document.querySelectorAll(".host").forEach((e) => (e.textContent = location.host));
 const $ = (s) => document.querySelector(s);
 const h = (t, p = {}, ...k) => { const n = Object.assign(document.createElement(t), p); n.append(...k); return n; };
 let pass = "";

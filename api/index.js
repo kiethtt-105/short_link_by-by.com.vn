@@ -203,22 +203,33 @@ async function links(req, res) {
 }
 
 // GET /api/logs?limit=100&action=click&code=abc&from=2026-11-01&format=csv
+// Apps Script kéo log tăng dần: GET /api/logs?after_id=123&limit=1000 + header x-sheet-token (chỉ đọc log)
 async function logs(req, res) {
-  if (!(await requireAdmin(req, res))) return;
+  const st = (process.env.SHEET_TOKEN || "").trim();
+  const viaSheet = !!st && same(String(req.headers["x-sheet-token"] || ""), st);
+  if (viaSheet) res.setHeader("Cache-Control", "no-store");
+  else if (!(await requireAdmin(req, res))) return;
 
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 5000);
   const action = req.query.action || null;
   const code = req.query.code || null;
   // from sai định dạng thì bỏ qua (trước đây gây lỗi 500)
   const from = req.query.from && !Number.isNaN(Date.parse(req.query.from)) ? req.query.from : null;
+  const afterId = /^\d+$/.test(String(req.query.after_id ?? "")) ? String(req.query.after_id) : null;
 
   await init();
-  const rows = await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail
-    FROM logs
-    WHERE (${action}::text IS NULL OR action = ${action})
-      AND (${code}::text IS NULL OR code = ${code})
-      AND (${from}::timestamptz IS NULL OR ts >= ${from}::timestamptz)
-    ORDER BY id DESC LIMIT ${limit}`;
+  const rows = afterId !== null
+    ? await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail
+        FROM logs WHERE id > ${afterId}::bigint
+          AND (${action}::text IS NULL OR action = ${action})
+          AND (${code}::text IS NULL OR code = ${code})
+        ORDER BY id ASC LIMIT ${limit}`
+    : await sql`SELECT id, ts, action, code, ip, user_agent, referrer, status, detail
+        FROM logs
+        WHERE (${action}::text IS NULL OR action = ${action})
+          AND (${code}::text IS NULL OR code = ${code})
+          AND (${from}::timestamptz IS NULL OR ts >= ${from}::timestamptz)
+        ORDER BY id DESC LIMIT ${limit}`;
 
   if (req.query.format === "csv") {
     const head = ["id", "ts", "action", "code", "ip", "user_agent", "referrer", "status", "detail"];
