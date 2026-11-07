@@ -231,16 +231,16 @@ async function qr(req, res) {
 }
 
 const page = (title, big, msg) => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#eaf2ff;font:16px system-ui,sans-serif;text-align:center">
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#eaf2ff;font:16px 'Comic Sans MS','Comic Sans','Chalkboard SE','Comic Neue',system-ui,sans-serif;text-align:center">
 <main><h1 style="font-size:64px;margin:0;color:#5b8bff;text-shadow:0 0 24px #5b8bff">${big}</h1><p>${msg}</p>
 <p><a href="/" style="color:#ff2bd6">Tạo link mới</a> · <a href="https://by.com.vn/" rel="noopener" style="color:#5b8bff">Design by Tuankiet</a></p></main></body></html>`;
 const notFoundPage = () => page("Link không tồn tại", "404", "Link này không tồn tại hoặc đã bị xoá.");
 const expiredPage = () => page("Link đã hết hạn", "410", "Link này đã hết hạn hoặc hết lượt truy cập.");
 const passPage = (msg = "") => `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link được bảo vệ</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#e8ebf5;font:16px system-ui,sans-serif;text-align:center">
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07080f;color:#e8ebf5;font:16px 'Comic Sans MS','Comic Sans','Chalkboard SE','Comic Neue',system-ui,sans-serif;text-align:center">
 <main style="width:min(360px,90vw)"><h1 style="font-size:22px">Link được bảo vệ bằng mật khẩu</h1>
 <form method="post" action="" style="display:grid;gap:10px"><input type="password" name="password" required autofocus autocomplete="off" placeholder="Nhập mật khẩu" style="height:44px;padding:0 12px;border-radius:10px;border:1px solid #333a55;background:#0e1018;color:inherit;font:inherit">
-<button style="height:44px;border:0;border-radius:10px;background:#5b8bff;color:#06102e;font:600 16px system-ui;cursor:pointer">Mở link</button></form>
+<button style="height:44px;border:0;border-radius:10px;background:#5b8bff;color:#06102e;font:600 16px 'Comic Sans MS','Comic Sans','Chalkboard SE','Comic Neue',system-ui,sans-serif;cursor:pointer">Mở link</button></form>
 <p style="color:#ff5d78;min-height:1.4em">${msg}</p></main></body></html>`;
 const disabledPage = () => page("Link đã bị khoá", "410", "Link này đã bị khoá nên không thể truy cập.");
 
