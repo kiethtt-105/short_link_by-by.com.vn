@@ -1,0 +1,11 @@
+{
+  "name": "short-link-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@vercel/functions": "^1.5.0",
+    "qrcode": "^1.5.4"
+  }
+}

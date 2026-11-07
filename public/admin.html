@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cài đặt</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 640px; margin: 8vh auto; padding: 0 16px; }
+  form { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+  label { font-weight: 600; display: block; margin-bottom: 4px; }
+  input, select, textarea, button { padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #8886; box-sizing: border-box; }
+  input[type=color] { padding: 2px; height: 42px; width: 80px; }
+  input[type=number], select { width: 160px; }
+  textarea { width: 100%; min-height: 70px; font-family: inherit; }
+  button.primary { background: #2563eb; color: #fff; border: 0; cursor: pointer; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hint { font-size: 13px; opacity: .7; margin-top: 2px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #8883; }
+  .ok { color: #16a34a; } .err { color: #dc2626; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Cài đặt</h1>
+<p class="hint">Các cài đặt dưới đây không nhạy cảm và lưu trong database. Cài đặt quan trọng (khoá, kết nối) chỉ đặt ở biến môi trường Vercel.</p>
+
+<form id="login">
+  <input id="pass" type="password" placeholder="Mật khẩu quản trị (ADMIN_KEY)" autocomplete="current-password" required>
+  <button class="primary">Mở khoá</button>
+  <div id="loginMsg" class="err"></div>
+</form>
+
+<form id="settings" hidden>
+  <div id="fields"></div>
+  <div class="row">
+    <button class="primary">Lưu thay đổi</button>
+    <span id="msg"></span>
+  </div>
+</form>
+
+<script>
+let pass = "";
+let current = {};      // giá trị đang hiển thị từ server
+const resetKeys = new Set();
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  n.append(...kids);
+  return n;
+};
+
+async function api(method, body) {
+  const r = await fetch("/api/settings", {
+    method,
+    headers: { "Content-Type": "application/json", "x-admin-key": pass },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || (d.errors || []).join("; ") || "Lỗi");
+  return d;
+}
+
+const SOURCE = { db: "đã chỉnh ở đây", env: "từ biến Vercel", default: "mặc định" };
+
+function render(settings) {
+  const box = document.getElementById("fields");
+  box.replaceChildren();
+  current = {}; resetKeys.clear();
+  for (const [key, s] of Object.entries(settings)) {
+    current[key] = s.value;
+    let input;
+    if (s.type === "enum") {
+      input = el("select", { id: key });
+      for (const o of s.options) input.append(el("option", { value: o, textContent: o }));
+    } else if (s.type === "text") {
+      input = el("textarea", { id: key });
+    } else if (s.type === "int") {
+      input = el("input", { id: key, type: "number", min: s.min, max: s.max });
+    } else {
+      input = el("input", { id: key, type: "color" });
+    }
+    input.value = s.value;
+    const badge = el("span", { className: "badge", textContent: SOURCE[s.source] });
+    const resetBtn = el("button", { type: "button", textContent: "Đặt lại", title: "Bỏ giá trị đã chỉnh, quay về biến Vercel hoặc mặc định" });
+    resetBtn.onclick = () => {
+      resetKeys.add(key); input.value = s.default;
+      badge.textContent = "sẽ đặt lại khi lưu";
+    };
+    input.addEventListener("input", () => resetKeys.delete(key));
+    const wrap = el("div", {}, el("label", { htmlFor: key, textContent: s.label }),
+      el("div", { className: "row" }, input, badge, resetBtn));
+    if (s.hint) wrap.append(el("div", { className: "hint", textContent: s.hint }));
+    box.append(wrap);
+  }
+}
+
+document.getElementById("login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  pass = document.getElementById("pass").value;
+  const msg = document.getElementById("loginMsg");
+  msg.textContent = "";
+  try {
+    const d = await api("GET");
+    render(d.settings);
+    document.getElementById("login").hidden = true;
+    document.getElementById("settings").hidden = false;
+  } catch (err) { msg.textContent = err.message; pass = ""; }
+});
+
+document.getElementById("settings").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("msg");
+  const patch = {};
+  for (const key of Object.keys(current)) {
+    if (resetKeys.has(key)) patch[key] = null;
+    else if (document.getElementById(key).value !== current[key]) patch[key] = document.getElementById(key).value;
+  }
+  if (!Object.keys(patch).length) { msg.className = ""; msg.textContent = "Không có thay đổi"; return; }
+  try {
+    const d = await api("PUT", patch);
+    render(d.settings);
+    msg.className = "ok"; msg.textContent = "Đã lưu";
+  } catch (err) { msg.className = "err"; msg.textContent = err.message; }
+});
+</script>
+</body>
+</html>
