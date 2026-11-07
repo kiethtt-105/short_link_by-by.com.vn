@@ -25,6 +25,10 @@
 </form>
 <div id="out"></div>
 <script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>
 const out = document.getElementById("out");
 document.getElementById("f").addEventListener("submit", async (e) => {
   e.preventDefault();
