@@ -18,7 +18,7 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=14">
+<link rel="stylesheet" href="/style.css?v=16">
 </head>
 <body class="home">
 <header class="top">
@@ -363,7 +363,7 @@ async function qrBlob(d, px = 1024) {
 const pngBtn = (d) => h("button", { className: "btn ghost", type: "button", textContent: "Tải PNG",
   onclick: async () => { try { saveBlob(await qrBlob(d), d.code + ".png"); } catch { toast("Không tải được PNG", true); } } });
 
-const SANS = 'system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+const SANS = getComputedStyle(document.documentElement).getPropertyValue("--font").trim() || "system-ui,sans-serif"; // cùng font với trang
 function fitText(x, text, px, maxW) {
   x.font = `700 ${px}px ${SANS}`;
   while (x.measureText(text).width > maxW && px > 12) x.font = `700 ${(px -= 2)}px ${SANS}`;

@@ -18,7 +18,7 @@ const RESERVED = new Set(["api", "index", "favicon", "robots", "admin", "style",
 const newCode = (len = 5) => Array.from({ length: len }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 // Ô bắt đầu bằng = + - @ (hoặc tab/CR) có thể chạy như công thức khi mở CSV bằng Excel → thêm dấu ' phía trước
 const csvCell = (v) => {
-  let s = String(v ?? "");
+  let s = v instanceof Date ? v.toISOString() : String(v ?? "");
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return `"${s.replaceAll('"', '""')}"`;
 };
@@ -209,7 +209,8 @@ async function stats(req, res) {
         UNION ALL SELECT 'device', COALESCE(NULLIF(device, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2
         UNION ALL SELECT 'browser', COALESCE(NULLIF(browser, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2
         UNION ALL SELECT 'os', COALESCE(NULLIF(os, ''), '(không rõ)'), count(*)::int FROM base GROUP BY 2`,
-    sql`SELECT count(*)::int AS bots FROM logs WHERE action = 'bot_click' AND code = ${code}`,
+    sql`SELECT count(*)::int AS bots FROM logs WHERE action = 'bot_click' AND code = ${code}
+      AND ts >= (SELECT created_at FROM links WHERE code = ${code})`,
   ]);
   const top = (k) => dim.filter((r) => r.k === k).sort((a, b) => b.clicks - a.clicks).slice(0, 8)
     .map(({ name, clicks }) => ({ name, clicks }));
@@ -262,7 +263,7 @@ async function qr(req, res) {
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const REASONS = { phishing: "Lừa đảo / giả mạo", malware: "Mã độc / virus", illegal: "Nội dung bị cấm", spam: "Spam", other: "Lý do khác" };
-const head = (title) => `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)"><title>${title}</title><link rel="icon" href="/icons/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=14"></head>`;
+const head = (title) => `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#07080f" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#f4f6fc" media="(prefers-color-scheme: light)"><title>${title}</title><link rel="icon" href="/icons/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css?v=16"></head>`;
 // Các trang này dùng chung style.css với trang chủ (tự đổi sáng/tối, cùng font, cùng kích thước nút). Form báo cáo vẫn là form HTML thuần, không cần JavaScript.
 const tail = `<p class="gfoot"><a href="/terms.html">Điều khoản</a> · <a href="https://by.com.vn/" target="_blank" rel="noopener">Design by Tuankiet</a></p></main></body></html>`;
 const reportForm = (code) => `<details class="greport"><summary>Báo cáo link này</summary>
@@ -278,6 +279,16 @@ const passPage = (msg = "", code = "") => `${head("Link được bảo vệ")}<b
 <form method="post" action=""><input class="fld" type="password" name="password" required autofocus autocomplete="off" placeholder="Nhập mật khẩu" aria-label="Mật khẩu">
 <button class="go">Mở link</button></form>
 <p class="err" role="alert">${msg}</p>${code ? reportForm(code) : ""}${tail}`;
+// Trang chờ 1-2 giây trước khi chuyển đến đích: hiện tên miền đích để người mở link biết mình sắp đi đâu
+const waitPage = (url, ms, code) => {
+  let host = ""; try { host = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+  const sec = Math.max(1, Math.round(ms / 1000));
+  const js = JSON.stringify(url).replace(/</g, "\\u003c");
+  return head("Đang chuyển hướng").replace("</head>", `<noscript><meta http-equiv="refresh" content="${sec};url=${esc(url)}"></noscript></head>`) +
+    `<body class="gate"><main><h1 class="sm">Đang chuyển bạn đến</h1><p class="goto"><b>${esc(host)}</b></p>
+<div class="loadbar" aria-hidden="true"><i style="animation-duration:${ms}ms"></i></div>
+<p><a class="go" href="${esc(url)}" rel="noopener noreferrer">Đi ngay</a></p>${reportForm(code)}${tail.replace("</body>", `<script>setTimeout(function(){location.replace(${js})},${ms})</script></body>`)}`;
+};
 const disabledPage = (code) => page("Link đã bị khoá", "410", "Link này đã bị khoá nên không thể truy cập.", code);
 
 // GET /<code> — chuyển hướng + đếm lượt. Link có mật khẩu: GET hiện form, POST kiểm tra rồi chuyển hướng (303)
@@ -296,7 +307,7 @@ async function redirect(req, res) {
     const [f] = await sql`UPDATE links SET clicks = clicks + 1, scans = scans + ${qr ? 1 : 0}
       WHERE code = ${code} AND pass_hash IS NULL AND NOT disabled AND (expires_at IS NULL OR expires_at > now())
         AND (max_clicks IS NULL OR clicks < max_clicks) RETURNING url, clicks, max_clicks`;
-    if (f) return countedClick(req, res, code, f, qr);
+    if (f) return await countedClick(req, res, code, f, qr);
   }
 
   const [l] = await sql`SELECT url, disabled, pass_hash, pass_salt,
@@ -331,10 +342,10 @@ async function redirect(req, res) {
     WHERE code = ${code} AND NOT disabled AND (expires_at IS NULL OR expires_at > now())
       AND (max_clicks IS NULL OR clicks < max_clicks) RETURNING url, clicks, max_clicks`;
   if (!rows.length) { log(req, { action: "expired_click", code, status: 410 }); return html(410, expiredPage(code)); }
-  return countedClick(req, res, code, rows[0], fromQr);
+  return await countedClick(req, res, code, rows[0], fromQr);
 }
 // Sau khi đã cộng lượt: ghi nhật ký, cảnh báo Telegram (nền) rồi chuyển hướng
-function countedClick(req, res, code, row, fromQr) {
+async function countedClick(req, res, code, row, fromQr) {
   log(req, { action: fromQr ? "scan" : "click", code, status: 302, detail: row.url });
   // Cảnh báo Telegram (chạy nền, không làm chậm chuyển hướng): chạm giới hạn lượt, hoặc đột biến (chỉ kiểm tra mỗi 10 lượt)
   if (telegramOn()) {
@@ -342,6 +353,8 @@ function countedClick(req, res, code, row, fromQr) {
     if (cap && clicks >= cap) bg(alertOnce(code, "limit", `⛔ Link đã hết lượt mở\n${base}/${code} → ${to}\nĐã đủ ${cap} lượt nên link tự ngừng hoạt động. Muốn mở lại: /admin → Sửa → tăng giới hạn lượt.`));
     else if (clicks % 10 === 0) bg(checkSpike(code, base, to));
   }
+  const ms = (await getSettings()).redirect_delay_ms;
+  if (ms > 0) { res.setHeader("Content-Type", "text/html; charset=utf-8"); return res.status(200).send(waitPage(row.url, ms, code)); }
   res.redirect(req.method === "POST" ? 303 : 302, row.url);
 }
 // Tên miền đích rút gọn để tin Telegram dễ đọc

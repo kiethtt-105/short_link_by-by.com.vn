@@ -11,7 +11,7 @@
 <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/style.css?v=14">
+<link rel="stylesheet" href="/style.css?v=16">
 </head>
 <body class="admin">
 <header class="top">
@@ -180,8 +180,8 @@ async function loadLinks() {
 function editLink(l) {
   const dlg = h("dialog", {});
   const opt = (v, t) => h("option", { value: v, textContent: t });
-  const exp = h("select", {}, opt("keep", l.expires_at ? "Giữ nguyên (" + full(l.expires_at) + ")" : "Giữ nguyên (không hết hạn)"), opt("none", "Bỏ hạn"),
-    opt("1", "1 giờ kể từ bây giờ"), opt("24", "1 ngày"), opt("168", "7 ngày"), opt("720", "30 ngày"), opt("8760", "1 năm"));
+  const exp = h("select", {}, opt("keep", l.expires_at ? "Giữ nguyên (" + full(l.expires_at) + ")" : "Giữ nguyên (không hết hạn)"), opt("none", "Không hết hạn"),
+    opt("1", "Sau 1 giờ"), opt("24", "Sau 1 ngày"), opt("168", "Sau 7 ngày"), opt("720", "Sau 30 ngày"), opt("8760", "Sau 1 năm"));
   const mc = h("input", { type: "number", min: 1, max: 10000000, placeholder: "Không giới hạn", value: l.max_clicks || "" });
   const cp = h("input", { type: "checkbox" });
   const save = h("button", { className: "b p", type: "button", textContent: "Lưu" });
@@ -198,7 +198,7 @@ function editLink(l) {
   };
   dlg.append(h("h2", { textContent: "/" + l.code }),
     h("div", { className: "stack" },
-      h("label", {}, "Hạn dùng", exp), h("label", {}, "Giới hạn lượt truy cập (đã dùng " + num(l.clicks) + ")", mc),
+      h("label", {}, "Hạn dùng", exp), h("label", {}, "Số lượt mở tối đa (đã dùng " + num(l.clicks) + ")", mc),
       ...(l.protected ? [h("label", { className: "chk" }, cp, " Gỡ mật khẩu của link")] : []),
       h("div", { className: "bar" }, save, h("button", { className: "b", type: "button", textContent: "Huỷ", onclick: close }))));
   dlg.addEventListener("click", (e) => e.target === dlg && close());
