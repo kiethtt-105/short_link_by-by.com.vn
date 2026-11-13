@@ -53,7 +53,7 @@
     </section>
     <section id="settings" hidden>
       <form id="sf"><div id="fields" class="grid2"></div><div class="savebar"><button class="b p">Lưu thay đổi</button><span id="msg"></span></div></form>
-      <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button>
+      <div class="bar" style="margin-top:8px"><button id="tgtest" class="b" type="button">Gửi thử Telegram</button><button id="chk" class="b" type="button">Kiểm tra link chết ngay</button><button id="logoutall" class="b danger" type="button">Đăng xuất mọi thiết bị</button>
         <span class="muted">Cần TELEGRAM_BOT_TOKEN và TELEGRAM_CHAT_ID trong biến môi trường Vercel.</span></div>
       <p class="muted" style="font-size:13px;margin:4px 0 0">Luôn có thêm cảnh báo: ⛔ hết lượt · 📈 đột biến · 🚩 báo cáo · 📋 tổng hợp hằng ngày.</p>
     </section>
@@ -215,7 +215,7 @@ const ACTION = { create: "Tạo link", click: "Lượt bấm link", scan: "Lư�
   create_failed: "Tạo link thất bại", auth_failed: "API key không hợp lệ", qr_failed: "Tạo mã QR thất bại",
   link_delete: "Xoá link", settings_update: "Cập nhật cài đặt", purge: "Dọn nhật ký", admin_auth_failed: "Đăng nhập quản trị sai",
   link_disable: "Khoá link", link_enable: "Mở khoá link", link_update: "Sửa link", expired_click: "Bấm link hết hạn", wrong_password: "Nhập sai mật khẩu link", disabled_click: "Bấm link đã khoá", captcha_failed: "Xác minh chống spam thất bại", unsafe_url: "Link không an toàn (bị chặn)",
-  report: "Báo cáo link", sync_create: "Tạo mã khôi phục", sync_restore: "Khôi phục lịch sử", watch: "Kiểm tra định kỳ", admin_login: "Đăng nhập quản trị" };
+  report: "Báo cáo link", sync_create: "Tạo mã khôi phục", sync_restore: "Khôi phục lịch sử", watch: "Kiểm tra định kỳ", admin_login: "Đăng nhập quản trị", admin_revoke_all: "Đăng xuất mọi phiên quản trị" };
 $("#act").append(...["", ...Object.keys(ACTION)].map((a) => h("option", { value: a, textContent: ACTION[a] || "Tất cả thao tác" })));
 let logRows = [];
 // Gõ một địa chỉ IP vào ô lọc → máy chủ tìm trong TOÀN BỘ nhật ký (không chỉ 200 dòng đang hiện)
@@ -257,10 +257,10 @@ $("#csv").onclick = async () => {
 const SRC = { db: "Đã tùy chỉnh", env: "Theo hệ thống", default: "Mặc định" };
 let current = {}; const resetKeys = new Set();
 // Telegram: ô tick theo từng thao tác (tick = có báo). Giá trị lưu là danh sách thao tác KHÔNG báo; rỗng = "none"
-const TELE_OPS = ["create", "admin_login", "admin_auth_failed", "auth_failed", "link_delete", "link_disable", "link_enable", "link_update", "settings_update", "unsafe_url",
+const TELE_OPS = ["create", "admin_login", "admin_auth_failed", "admin_revoke_all", "auth_failed", "link_delete", "link_disable", "link_enable", "link_update", "settings_update", "unsafe_url",
   "blocked_domain", "create_failed", "qr_failed", "expired_click", "disabled_click", "sync_create", "sync_restore", "purge",
   "click", "scan", "bot_click", "not_found", "wrong_password", "rate_limited", "captcha_failed"];
-const TELE_KEY = new Set(TELE_OPS.slice(0, 10));
+const TELE_KEY = new Set(TELE_OPS.slice(0, 11));
 function renderTele(k, v) {
   const input = h("input", { id: k, type: "hidden" }); input.value = v.value;
   const badge = h("span", { className: "badge", textContent: SRC[v.source] });
@@ -367,7 +367,12 @@ function logout(msg) {
   $("#app").hidden = true; $("#logout").hidden = true; $("#gate").hidden = false;
   $("#pass").value = ""; $("#loginMsg").textContent = msg || ""; $("#pass").focus();
 }
-$("#logout").onclick = () => logout("");
+// Đăng xuất phải báo máy chủ để trả lại chỗ (chỉ có 2 chỗ); lỗi mạng thì vẫn thoát phía trình duyệt
+$("#logout").onclick = async () => { try { await raw("/api/index?op=logout", { method: "POST" }); } catch {} logout(""); };
+$("#logoutall").onclick = async () => {
+  if (!confirm("Đăng xuất mọi thiết bị, kể cả máy này?")) return;
+  try { await raw("/api/index?op=logout&all=1", { method: "POST" }); logout("Đã đăng xuất mọi thiết bị."); } catch (e) { toast(e.message, true); }
+};
 async function enter(password) {
   const b = $("#lbtn"); b.disabled = true; b.classList.add("busy"); $("#loginMsg").textContent = "";
   try {

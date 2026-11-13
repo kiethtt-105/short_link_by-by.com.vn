@@ -709,7 +709,19 @@ async function reports(req, res) {
     LEFT JOIN links k ON k.code = r.code ORDER BY r.n DESC, r.last DESC LIMIT 50`;
   res.json({ reports: rows });
 }
-const routes = { reports, shorten, check, stats, qr, r: redirect, links, logs, settings, cleanup, sync, suggest, spark, report, health, watch };
+// POST /api/index?op=logout[&all=1] — đăng xuất phiên hiện tại (giải phóng 1 chỗ trong 2 chỗ), hoặc mọi thiết bị
+async function logout(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Chỉ hỗ trợ POST" });
+  if (!(await requireAdmin(req, res))) return;
+  if (req.query.all === "1") {
+    await sql`DELETE FROM admin_sessions`;
+    log(req, { action: "admin_revoke_all", status: 200, detail: "Đăng xuất mọi thiết bị (thủ công)" });
+  } else {
+    await sql`DELETE FROM admin_sessions WHERE id = ${sha256(String(req.headers["x-admin-session"] || ""))}`;
+  }
+  res.json({ ok: true });
+}
+const routes = { logout, reports, shorten, check, stats, qr, r: redirect, links, logs, settings, cleanup, sync, suggest, spark, report, health, watch };
 
 export default async function handler(req, res) {
   const op = req.query.op;
