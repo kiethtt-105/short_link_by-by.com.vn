@@ -53,6 +53,7 @@
             <div class="pwrow"><input id="pw" type="password" maxlength="64" autocomplete="new-password" placeholder="Không đặt mật khẩu"><button id="pwt" class="linkbtn" type="button">Hiện</button></div>
             <small>4-64 ký tự. Ai mở link cũng phải nhập mật khẩu.</small></div>
           <label class="opt full tick"><input type="checkbox" id="strip"> Xoá mã theo dõi quảng cáo khỏi link (utm_*, fbclid, gclid...)</label>
+          <label class="opt full tick"><input type="checkbox" id="nochk"> Link dùng một lần hoặc nhạy cảm: không để hệ thống mở thử trang đích</label>
         </div>
       </details>
       <div id="cf"></div>
@@ -452,7 +453,7 @@ $("#f").addEventListener("submit", async (e) => {
   if (pw && (pw.length < 4 || pw.length > 64)) { $("#pw").closest("details").open = true; return fail("Mật khẩu link gồm 4-64 ký tự.", $("#pw")); }
   if (!navigator.onLine) return fail("Bạn đang offline, hãy kết nối mạng rồi thử lại.");
   // Link đã rút gọn trước đó và không có tuỳ chọn riêng → dùng lại, không tạo mới
-  if (!alias && !$("#exp").value && !maxc && !pw) {
+  if (!alias && !$("#exp").value && !maxc && !pw && !$("#nochk").checked) {
     let href = ""; try { href = new URL(url).href; } catch {}
     const old = load().find((x) => x.url === href && !x.protected && !x.max_clicks && !x.expires_at);
     if (old && (await call("/api/stats?code=" + encodeURIComponent(old.code)).then(() => true, () => false))) {
@@ -467,9 +468,9 @@ $("#f").addEventListener("submit", async (e) => {
     go.textContent = "Đang tạo";
     const d = await call("/api/shorten", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, alias: alias || undefined, turnstile: tsToken || undefined,
-        expires_in: $("#exp").value || undefined, max_clicks: maxc || undefined, password: pw || undefined }) });
+        expires_in: $("#exp").value || undefined, max_clicks: maxc || undefined, password: pw || undefined, no_check: $("#nochk").checked || undefined }) });
     showResult(d); save([{ ...d, t: Date.now() }, ...load().filter((x) => x.code !== d.code)]); renderHist();
-    $("#url").value = ""; $("#alias").value = ""; $("#pw").value = ""; $("#maxc").value = ""; $("#exp").value = ""; $("#ac").textContent = ""; $("#pv").textContent = "";
+    $("#url").value = ""; $("#alias").value = ""; $("#pw").value = ""; $("#maxc").value = ""; $("#exp").value = ""; $("#nochk").checked = false; $("#ac").textContent = ""; $("#pv").textContent = "";
     copy(d.short_url).then((ok) => toast(ok ? "Đã tạo và sao chép link" : "Đã tạo link ngắn"));
   } catch (x) { showIdle(); fail(x.message); }
   tsReset(); // token Turnstile chỉ dùng được một lần

@@ -117,6 +117,7 @@ async function shorten(req, res) {
   const hours = intIn(body.expires_in, 1, 8760), maxc = intIn(body.max_clicks, 1, 10000000);
   if (Number.isNaN(hours) || Number.isNaN(maxc)) return fail(400, "Thời hạn hoặc số lượt tối đa không hợp lệ");
   const pw = typeof body.password === "string" ? body.password : "";
+  const noCheck = body.no_check === true;
   if (pw && (pw.length < 4 || pw.length > 64)) return fail(400, "Mật khẩu link gồm 4-64 ký tự");
 
   // Xác thực. Header x-sec-fetch-site do client tự đặt được nên KHÔNG còn dùng để miễn key:
@@ -150,15 +151,15 @@ async function shorten(req, res) {
   const passHash = pw ? hashPw(pw, salt).toString("hex") : null;
   let code = alias || null;
   if (code) {
-    const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt)
-                        VALUES (${code}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt})
+    const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt, no_check)
+                        VALUES (${code}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt}, ${noCheck})
                         ON CONFLICT DO NOTHING RETURNING code`;
     if (!r.length) return fail(409, "Alias đã tồn tại");
   } else {
     for (let i = 0; i < 10 && !code; i++) {
       const c = newCode(cfg.code_length);
-      const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt)
-                          VALUES (${c}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt})
+      const r = await sql`INSERT INTO links(code, url, created_ip, expires_at, max_clicks, pass_hash, pass_salt, no_check)
+                          VALUES (${c}, ${url}, ${ip}, ${expiresAt}::timestamptz, ${maxc}, ${passHash}, ${salt}, ${noCheck})
                           ON CONFLICT DO NOTHING RETURNING code`;
       if (r.length) code = c;
     }
@@ -168,7 +169,7 @@ async function shorten(req, res) {
   await logOp(req, { action: "create", code, status: 201, detail: url });
   const base = baseUrl(req);
   res.status(201).json({ code, short_url: `${base}/${code}`, qr_url: `${base}/api/qr?code=${code}`, url,
-    expires_at: expiresAt, max_clicks: maxc, protected: !!pw });
+    expires_at: expiresAt, max_clicks: maxc, protected: !!pw, no_check: noCheck });
 }
 
 // GET /api/stats?code=abc
@@ -402,20 +403,22 @@ async function links(req, res) {
     const has = (k) => Object.hasOwn(b, k);
     const bad = (m) => res.status(400).json({ error: m });
     if (has("disabled") && typeof b.disabled !== "boolean") return bad("disabled phải là true hoặc false");
+    if (has("no_check") && typeof b.no_check !== "boolean") return bad("no_check phải là true hoặc false");
     if (has("clear_password") && b.clear_password !== true) return bad("clear_password chỉ nhận true");
     // null = bỏ hạn / bỏ giới hạn; số = đặt mới (hạn tính từ lúc này)
     const hours = has("expires_in") ? (b.expires_in === null ? null : intIn(b.expires_in, 1, 87600)) : null;
     const maxc = has("max_clicks") ? (b.max_clicks === null ? null : intIn(b.max_clicks, 1, 10000000)) : null;
     if (Number.isNaN(hours) || Number.isNaN(maxc)) return bad("Thời hạn hoặc số lượt tối đa không hợp lệ");
-    if (!["disabled", "expires_in", "max_clicks", "clear_password"].some(has)) return bad("Không có gì để cập nhật");
+    if (!["disabled", "expires_in", "max_clicks", "clear_password", "no_check"].some(has)) return bad("Không có gì để cập nhật");
     const expiresAt = hours ? new Date(Date.now() + hours * 3600e3).toISOString() : null;
     const r = await sql`UPDATE links SET
         disabled = CASE WHEN ${has("disabled")}::boolean THEN ${b.disabled === true}::boolean ELSE disabled END,
         expires_at = CASE WHEN ${has("expires_in")}::boolean THEN ${expiresAt}::timestamptz ELSE expires_at END,
         max_clicks = CASE WHEN ${has("max_clicks")}::boolean THEN ${maxc}::bigint ELSE max_clicks END,
+        no_check = CASE WHEN ${has("no_check")}::boolean THEN ${b.no_check === true}::boolean ELSE no_check END,
         pass_hash = CASE WHEN ${b.clear_password === true}::boolean THEN NULL ELSE pass_hash END,
         pass_salt = CASE WHEN ${b.clear_password === true}::boolean THEN NULL ELSE pass_salt END
-      WHERE code = ${code} RETURNING disabled, expires_at, max_clicks, (pass_hash IS NOT NULL) AS protected`;
+      WHERE code = ${code} RETURNING disabled, expires_at, max_clicks, no_check, (pass_hash IS NOT NULL) AS protected`;
     if (!r.length) return res.status(404).json({ error: "Không tìm thấy link" });
     if (has("expires_in") || has("max_clicks")) await sql`DELETE FROM alerts WHERE code = ${code} AND kind IN ('limit', 'expiring')`;
     const onlyLock = has("disabled") && Object.keys(b).length === 1;
@@ -429,7 +432,7 @@ async function links(req, res) {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), auth.viaSheet ? 20000 : 200);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const rows = await sql`SELECT code, url, clicks, scans, created_at, created_ip, disabled, expires_at, max_clicks,
-    (pass_hash IS NOT NULL) AS protected, last_status, (fail_count >= 2) AS dead FROM links
+    (pass_hash IS NOT NULL) AS protected, no_check, last_status, (fail_count >= 2) AS dead FROM links
     WHERE (${q} = '' OR code ILIKE ${like} OR url ILIKE ${like})
     ORDER BY created_at DESC LIMIT ${limit}`;
   const [t] = await sql`SELECT count(*)::int AS total, COALESCE(sum(clicks), 0)::int AS clicks,
@@ -656,7 +659,7 @@ async function watch(req, res) {
   // Link đích "chết" = lỗi mạng, 404, 410 hoặc 5xx, và phải sai 2 lần liên tiếp mới gắn nhãn (tránh báo nhầm khi trang đích chập chờn).
   // 401/403/429 coi như còn sống vì nhiều trang chặn bot.
   const n = Math.min(Math.max(Number(req.query.n) || 25, 1), 40);
-  const due = await sql`SELECT code, url, fail_count FROM links WHERE NOT disabled AND (expires_at IS NULL OR expires_at > now())
+  const due = await sql`SELECT code, url, fail_count FROM links WHERE NOT disabled AND NOT no_check AND (expires_at IS NULL OR expires_at > now())
     AND (last_check IS NULL OR last_check < now() - interval '20 hours') ORDER BY last_check NULLS FIRST LIMIT ${n}`;
   const results = await Promise.all(due.map(async (l) => {
     let status = 0, skip = false;

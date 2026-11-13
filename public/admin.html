@@ -89,7 +89,7 @@ const num = (n) => Number(n).toLocaleString("vi-VN");
 const full = (t) => new Date(t).toLocaleString("vi-VN");
 const ago = (t) => { const s = (Date.now() - new Date(t)) / 1e3;
   return s < 60 ? "vừa xong" : s < 3600 ? Math.floor(s / 60) + " phút trước" : s < 86400 ? Math.floor(s / 3600) + " giờ trước" : new Date(t).toLocaleDateString("vi-VN"); };
-const flag = (c) => (/^[A-Z]{2}$/.test(c || "") ? String.fromCodePoint(...[...c].map((x) => 127397 + x.charCodeAt())) + " " : "");
+const flag = () => ""; // Windows không vẽ được emoji cờ (chỉ hiện chữ VN), nên chỉ ghi "Thành phố, Mã nước"
 const cell = (v, cls, title, label) => { const td = h("td", { textContent: v ?? "", className: cls || "", title: title ?? v ?? "" }); if (label) td.dataset.label = label; return td; };
 const lab = (td, label) => { td.dataset.label = label; return td; };
 const chip = (s) => h("span", { className: "chip " + (s >= 500 ? "r" : s >= 400 ? "w" : s >= 300 ? "c" : "g"), textContent: s });
@@ -161,6 +161,7 @@ async function loadLinks() {
     const chip = (c, t) => h("span", { className: "chip " + c, textContent: t });
     const chips = [];
     if (l.protected) chips.push(chip("w", "Mật khẩu"));
+    if (l.no_check) chips.push(chip("c", "Không kiểm tra đích"));
     if (l.dead) chips.push(chip("r", "Link đích lỗi" + (l.last_status ? " (" + l.last_status + ")" : "")));
     if (l.expires_at) { const gone = new Date(l.expires_at) < Date.now(); chips.push(chip(gone ? "r" : "c", gone ? "Đã hết hạn" : "Hết hạn " + full(l.expires_at))); }
     if (l.max_clicks) { const left = l.max_clicks - l.clicks; chips.push(chip(left <= 0 ? "r" : "c", left <= 0 ? "Hết lượt" : `Còn ${num(left)} lượt`)); }
@@ -184,6 +185,7 @@ function editLink(l) {
     opt("1", "Sau 1 giờ"), opt("24", "Sau 1 ngày"), opt("168", "Sau 7 ngày"), opt("720", "Sau 30 ngày"), opt("8760", "Sau 1 năm"));
   const mc = h("input", { type: "number", min: 1, max: 10000000, placeholder: "Không giới hạn", value: l.max_clicks || "" });
   const cp = h("input", { type: "checkbox" });
+  const nc = h("input", { type: "checkbox", checked: !!l.no_check });
   const save = h("button", { className: "b p", type: "button", textContent: "Lưu" });
   const close = () => { dlg.close(); dlg.remove(); };
   save.onclick = async () => {
@@ -191,6 +193,7 @@ function editLink(l) {
     if (exp.value !== "keep") body.expires_in = exp.value === "none" ? null : Number(exp.value);
     if (mc.value.trim() !== String(l.max_clicks || "")) body.max_clicks = mc.value.trim() ? Number(mc.value) : null;
     if (cp.checked) body.clear_password = true;
+    if (nc.checked !== !!l.no_check) body.no_check = nc.checked;
     if (!Object.keys(body).length) return close();
     save.disabled = true;
     try { await api("/api/links?code=" + encodeURIComponent(l.code), { method: "PATCH", body: JSON.stringify(body) }); toast("Đã cập nhật link"); close(); loadLinks(); }
@@ -200,6 +203,7 @@ function editLink(l) {
     h("div", { className: "stack" },
       h("label", {}, "Hạn dùng", exp), h("label", {}, "Số lượt mở tối đa (đã dùng " + num(l.clicks) + ")", mc),
       ...(l.protected ? [h("label", { className: "chk" }, cp, " Gỡ mật khẩu của link")] : []),
+      h("label", { className: "chk" }, nc, " Không kiểm tra trang đích (link dùng một lần)"),
       h("div", { className: "bar" }, save, h("button", { className: "b", type: "button", textContent: "Huỷ", onclick: close }))));
   dlg.addEventListener("click", (e) => e.target === dlg && close());
   document.body.append(dlg); dlg.showModal();
