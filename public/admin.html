@@ -79,7 +79,7 @@ async function raw(path, opt = {}) {
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
     const msg = d.error || (d.errors || []).join("; ") || "Lỗi " + r.status;
-    if (r.status === 401 && !$("#app").hidden) logout(d.code === "session_replaced" ? msg : "Phiên không còn hợp lệ, hãy đăng nhập lại.");
+    if (r.status === 401 && !$("#app").hidden) logout(""); // phiên hết hạn / bị thay: về màn đăng nhập, không hiện thông báo
     throw new Error(msg);
   }
   return r;
@@ -387,7 +387,7 @@ async function enter(password) {
     const t = location.hash.slice(1);
     if (t && t !== "links") loadLinks().catch(() => {}); // lấy số liệu tổng cho khung trên cùng
     await go(t);
-  } catch (x) { $("#loginMsg").textContent = x.message; sess = ""; try { localStorage.removeItem("as"); } catch {} }
+  } catch (x) { $("#loginMsg").textContent = password ? x.message : ""; sess = ""; try { localStorage.removeItem("as"); } catch {} }
   b.disabled = false; b.classList.remove("busy");
 }
 $("#login").addEventListener("submit", (e) => { e.preventDefault(); enter($("#pass").value); });
